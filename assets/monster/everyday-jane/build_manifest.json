@@ -1,0 +1,25 @@
+{
+  "source": "mimic_copy.blend",
+  "stages": [
+    "MotherOrdinary",
+    "MotherDoubtful",
+    "MotherUncanny",
+    "MotherRevealed"
+  ],
+  "region_faces": {
+    "shirt": 9299,
+    "jeans": 26629,
+    "hair": 33009
+  },
+  "features": [
+    "short black bob",
+    "white textured shirt",
+    "navy denim",
+    "broadened waist/hips",
+    "UncannySmile",
+    "HollowEyeSockets",
+    "StretchedArms",
+    "modeled teeth and mouth",
+    "skinned facial additions"
+  ]
+}
