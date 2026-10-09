@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="The Familiar - Monster Preview"
-run/main_scene="res://design/monster/preview.tscn"
+run/main_scene="res://tests/monster/behavior_lab.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [display]

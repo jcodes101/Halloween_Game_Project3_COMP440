@@ -3,7 +3,8 @@
 Open the existing project in Godot **4.7.2**. In the FileSystem panel, open
 `tests/monster/behavior_lab.tscn`, then press **F6 (Run Current Scene)**.
 The room is built when the scene runs, so the editor initially shows an empty root.
-F5 still opens the existing model preview.
+**F5 (Run Project)** now opens this playable test scene as well. To view only the
+mother model, open `design/monster/preview.tscn` and press F6.
 
 The first-person camera is 1.05 m above the floor and starts tilted upward by
 10 degrees so the mother towers over the player. Mouse look remains free.
