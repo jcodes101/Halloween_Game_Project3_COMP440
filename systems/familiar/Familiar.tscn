@@ -1,0 +1,25 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://systems/familiar/familiar_controller.gd" id="1_controller"]
+[ext_resource type="Script" path="res://systems/familiar/placeholder_visual_adapter.gd" id="2_adapter"]
+[ext_resource type="PackedScene" path="res://systems/familiar/placeholder_humanoid.tscn" id="3_humanoid"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_collision"]
+radius = 0.35
+height = 1.75
+
+[node name="Familiar" type="CharacterBody3D" node_paths=PackedStringArray("visual_adapter")]
+collision_layer = 4
+collision_mask = 3
+script = ExtResource("1_controller")
+visual_adapter = NodePath("VisualAdapter")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.88, 0)
+shape = SubResource("CapsuleShape3D_collision")
+
+[node name="VisualAdapter" type="Node3D" parent="." node_paths=PackedStringArray("humanoid_node")]
+script = ExtResource("2_adapter")
+humanoid_node = NodePath("PlaceholderHumanoid")
+
+[node name="PlaceholderHumanoid" parent="VisualAdapter" instance=ExtResource("3_humanoid")]

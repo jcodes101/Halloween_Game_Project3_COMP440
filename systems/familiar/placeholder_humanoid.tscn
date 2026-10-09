@@ -1,0 +1,74 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://systems/familiar/placeholder_humanoid.gd" id="1_script"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_torso"]
+size = Vector3(0.42, 0.5, 0.25)
+
+[sub_resource type="BoxMesh" id="BoxMesh_head"]
+size = Vector3(0.28, 0.3, 0.28)
+
+[sub_resource type="BoxMesh" id="BoxMesh_eye"]
+size = Vector3(0.045, 0.045, 0.04)
+
+[sub_resource type="BoxMesh" id="BoxMesh_nose"]
+size = Vector3(0.03, 0.05, 0.03)
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_arm"]
+radius = 0.055
+height = 0.52
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_leg"]
+radius = 0.075
+height = 0.85
+
+[node name="PlaceholderHumanoid" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="Hips" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, 0)
+
+[node name="Torso" type="MeshInstance3D" parent="Hips"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.35, 0)
+mesh = SubResource("BoxMesh_torso")
+
+[node name="HeadPivot" type="Node3D" parent="Hips"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.65, 0)
+
+[node name="HeadMesh" type="MeshInstance3D" parent="Hips/HeadPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
+mesh = SubResource("BoxMesh_head")
+
+[node name="EyeLeft" type="MeshInstance3D" parent="Hips/HeadPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.07, 0.18, -0.15)
+mesh = SubResource("BoxMesh_eye")
+
+[node name="EyeRight" type="MeshInstance3D" parent="Hips/HeadPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.07, 0.18, -0.15)
+mesh = SubResource("BoxMesh_eye")
+
+[node name="Nose" type="MeshInstance3D" parent="Hips/HeadPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.13, -0.15)
+mesh = SubResource("BoxMesh_nose")
+
+[node name="LeftArmPivot" type="Node3D" parent="Hips"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.26, 0.55, 0)
+
+[node name="LeftArmMesh" type="MeshInstance3D" parent="Hips/LeftArmPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.26, 0)
+mesh = SubResource("CapsuleMesh_arm")
+
+[node name="RightArmPivot" type="Node3D" parent="Hips"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.26, 0.55, 0)
+
+[node name="RightArmMesh" type="MeshInstance3D" parent="Hips/RightArmPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.26, 0)
+mesh = SubResource("CapsuleMesh_arm")
+
+[node name="LeftLeg" type="MeshInstance3D" parent="Hips"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.12, -0.42, 0)
+mesh = SubResource("CapsuleMesh_leg")
+
+[node name="RightLeg" type="MeshInstance3D" parent="Hips"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.12, -0.42, 0)
+mesh = SubResource("CapsuleMesh_leg")
