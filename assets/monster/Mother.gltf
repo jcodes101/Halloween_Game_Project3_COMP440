@@ -33944,9 +33944,9 @@
       "name": "Orange",
       "pbrMetallicRoughness": {
         "baseColorFactor": [
-          0.3423798084259033,
-          0.1214110255241394,
-          0.039835505187511444,
+          0.012,
+          0.025,
+          0.065,
           1
         ],
         "metallicFactor": 0,

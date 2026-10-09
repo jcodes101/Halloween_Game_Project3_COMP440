@@ -1,5 +1,7 @@
 # Godot model preview test
 
+The navy-trouser revision was reimported and rendered successfully; Idle/Walk/Run/Wave advancement passed again. The captured viewport was inspected and shows navy trousers. This is a material color change, not a finished denim texture.
+
 The preview now loads `assets/monster/Mother.gltf`, a black-haired design variant. Its rendered preview and Idle/Walk/Run/Wave playback were also tested successfully in Godot 4.7.2. The original Casual source remains preserved.
 
 Tested October 8, 2026 with executable version `4.7.2.stable.official.ed1daf0bf`.
