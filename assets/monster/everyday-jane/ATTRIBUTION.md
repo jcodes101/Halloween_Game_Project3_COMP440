@@ -10,3 +10,5 @@
 - `mimic_copy.blend` is the user's Blender working copy of this asset. It includes scene objects in addition to the imported character. No modifications were made by the inspection script.
 
 Retain this attribution, license link, and a description of later modifications when distributing the asset or game.
+
+`Mother_Detailed.blend`, `Mother_Detailed.glb`, and the preview copy `assets/monster/MotherDetailed.glb` are draft adaptations with new face material assignments for clothing and hair. The original character geometry and animation are retained. These drafts have incomplete color boundaries; see `design/monster/EDIT_PROGRESS.md`.

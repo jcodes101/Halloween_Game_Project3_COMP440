@@ -5,7 +5,7 @@ var status: Label
 var preview_animations: Array[String] = []
 
 func _ready() -> void:
-	var model_scene := load("res://assets/monster/everyday-jane/EverydayJane.glb") as PackedScene
+	var model_scene := load("res://assets/monster/MotherDetailed.glb") as PackedScene
 	if model_scene == null:
 		push_error("Could not import Casual.gltf")
 		get_tree().quit(1)
@@ -30,6 +30,9 @@ func _ready() -> void:
 	print("Model bounds: ", bounds)
 	var center := bounds.get_center()
 	var height := maxf(bounds.size.y, 1.0)
+	if bounds.size.length() < 0.1:
+		height = 1.59
+		center = Vector3(0, 0.795, 0)
 	# This source's unskinned mesh bounds lie along Z; its rig stands it upright.
 	if bounds.size.z > bounds.size.y * 2.0:
 		height = bounds.size.z
