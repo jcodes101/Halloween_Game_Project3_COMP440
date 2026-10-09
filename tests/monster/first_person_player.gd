@@ -5,6 +5,8 @@ signal interact_requested
 @export var walk_speed := 3.5
 @export var sprint_speed := 5.0
 @export var mouse_sensitivity := 0.0025
+@export var eye_height := 1.05
+@export var starting_look_up_degrees := 10.0
 var movement_enabled := true
 var hide_locked := false
 var camera: Camera3D
@@ -21,7 +23,8 @@ func _ready() -> void:
 	collision.position.y = 0.9
 	add_child(collision)
 	camera = Camera3D.new()
-	camera.position.y = 1.6
+	camera.position.y = eye_height
+	camera.rotation.x = deg_to_rad(starting_look_up_degrees)
 	camera.fov = 75
 	camera.near = 0.05
 	add_child(camera)
@@ -51,7 +54,7 @@ func is_still() -> bool:
 func reset_player(position: Vector3) -> void:
 	global_position = position
 	rotation = Vector3.ZERO
-	camera.rotation = Vector3.ZERO
+	camera.rotation = Vector3(deg_to_rad(starting_look_up_degrees), 0, 0)
 	velocity = Vector3.ZERO
 	move_intent = Vector2.ZERO
 	hide_locked = false

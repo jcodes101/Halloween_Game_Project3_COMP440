@@ -378,7 +378,7 @@ func _on_capture(actor: Node3D) -> void:
 	player.movement_enabled = false
 	player.velocity = Vector3.ZERO
 	var forward := -actor.global_basis.z
-	scare_camera.global_position = actor.global_position + forward * 0.47 + Vector3.UP * 1.46
+	scare_camera.global_position = actor.global_position + forward * 0.6 + Vector3.UP * player.eye_height
 	scare_camera.look_at(actor.global_position + forward * 0.17 + Vector3.UP * 1.46)
 	scare_camera.current = true
 	_capture_elapsed = 0.0

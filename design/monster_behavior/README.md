@@ -5,6 +5,11 @@ Open the existing project in Godot **4.7.2**. In the FileSystem panel, open
 The room is built when the scene runs, so the editor initially shows an empty root.
 F5 still opens the existing model preview.
 
+The first-person camera is 1.05 m above the floor and starts tilted upward by
+10 degrees so the mother towers over the player. Mouse look remains free.
+The capture camera also looks up from this lower height. Adjust `eye_height` and
+`starting_look_up_degrees` in `first_person_player.gd` to tune the viewpoint.
+
 ## Controls
 
 | Input | Action |
