@@ -53,4 +53,14 @@ for p in obj.data.polygons:
     if b>r*1.2 and b>g*1.05 and 1.42<center.z<1.52 and center.y<-.10 and .014<abs(center.x)<.060:features['eyes'].append(list(center))
     if r>g*1.7 and r>b*1.6 and r>.5 and g>.1 and 1.36<center.z<1.44 and center.y<-.13 and abs(center.x)<.04:features['lips'].append(list(center))
 print('FEATURES', {k:{'count':len(cs),'center':[sum(c[i] for c in cs)/len(cs) for i in range(3)] if cs else None,'bounds':[(min(c[i] for c in cs),max(c[i] for c in cs)) for i in range(3)] if cs else None} for k,cs in features.items()})
+import numpy as np
+fit=[]
+for p in obj.data.polygons:
+    c=sum((coords[i] for i in p.vertices),Vector())/len(p.vertices)
+    if c.y<-.10 and abs(c.x)<.08 and 1.34<c.z<1.535:
+        u=sum(uv[i].uv.x for i in p.loop_indices)/len(p.loop_indices); v=sum(uv[i].uv.y for i in p.loop_indices)/len(p.loop_indices)
+        if .58<u<.80 and .05<v<.32:fit.append(([c.x,c.z,1],[u,v]))
+if fit:
+    a=np.array([x for x,y in fit]);b=np.array([y for x,y in fit]);coef=np.linalg.lstsq(a,b,rcond=None)[0]
+    print('FACE_UV_FIT',len(fit),coef.tolist(),'ERROR',np.mean(np.linalg.norm(a@coef-b,axis=1)))
 ev.to_mesh_clear()

@@ -13,13 +13,15 @@
   },
   "features": [
     "short black bob",
-    "white textured shirt",
+    "white short-sleeved shirt",
     "navy denim",
     "broadened waist/hips",
     "UncannySmile",
     "HollowEyeSockets",
     "StretchedArms",
-    "modeled teeth and mouth",
-    "skinned facial additions"
+    "connected recessed eye sockets",
+    "real oral cavity with integrated lip topology",
+    "teeth fitted inside mouth",
+    "single manifold head mesh"
   ]
 }

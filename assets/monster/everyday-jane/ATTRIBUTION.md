@@ -11,4 +11,6 @@
 
 Retain this attribution, license link, and a description of later modifications when distributing the asset or game.
 
-`Mother_Detailed.blend`, `Mother_Detailed.glb`, and the preview copy `assets/monster/MotherDetailed.glb` are draft adaptations with new face material assignments for clothing and hair. The original character geometry and animation are retained. These drafts have incomplete color boundaries; see `design/monster/EDIT_PROGRESS.md`.
+The current adaptations are `Mother_Detailed.blend` and the exported `MotherOrdinary.glb`, `MotherDoubtful.glb`, `MotherUncanny.glb`, and `MotherRevealed.glb` in `assets/monster/`. Modifications include replacement short black hair, a continuous reconstructed textured head, white short-sleeved clothing, recolored navy denim, broader waist/hips, facial deformation controls, subtly stretched arms, and an integrated facial mesh with welded eyelids and lips, recessed sockets, a real oral cavity, and separate anatomical teeth fitted inside. Separate eye and mouth overlays from the earlier draft are no longer exported. The original rig and walking animation are retained.
+
+Earlier `Mother_Detailed.glb` and `MotherDetailed.glb` files are preserved material-only drafts and are not the current preview models.

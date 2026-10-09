@@ -6,3 +6,9 @@ downloads/
 # Google Drive quota error responses; these are not valid model assets.
 /assets/vendor/quaternius/ultimate-modular-women/all-together.blend
 /assets/vendor/quaternius/ultimate-modular-women/all-together.fbx
+
+# Unused texture extractions from superseded facial-transfer drafts.
+/assets/monster/Mother*_Image_0.png
+
+# Blender/Python script caches.
+__pycache__/

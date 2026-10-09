@@ -63,12 +63,13 @@ func _show_stage(stage: String) -> void:
 		remove_child(model)
 		model.queue_free()
 	current_stage = stage
-	var scene := load("res://assets/monster/Mother" + stage + ".glb") as PackedScene
+	var scene := load("res://assets/monster/MotherVisual.tscn") as PackedScene
 	if scene == null:
 		push_error("Cannot load mother stage: " + stage)
 		get_tree().quit(1)
 		return
 	model = scene.instantiate() as Node3D
+	model.set("appearance", stage)
 	add_child(model)
 	player = model.find_children("*", "AnimationPlayer", true, false)[0] as AnimationPlayer
 	for animation_name in player.get_animation_list():
@@ -116,6 +117,28 @@ func _verify_design() -> void:
 			push_error("Missing rig or facial shapes: " + stage)
 			get_tree().quit(1)
 			return
+		var integrated_heads := 0
+		for node in model.find_children("*", "MeshInstance3D", true, false):
+			var mesh_node := node as MeshInstance3D
+			var mesh_name := str(mesh_node.name).to_lower().replace(" ", "_")
+			if "integrated_face" in mesh_name:
+				integrated_heads += 1
+				if mesh_node.mesh.get_surface_count() < 3:
+					push_error("Head lacks skin/lip/interior surfaces: " + stage)
+					get_tree().quit(1)
+					return
+			if "hollow_eye" in mesh_name or "smile_lip_rim" in mesh_name or "smile_mouth_cavity" in mesh_name:
+				push_error("Superseded facial overlay exported: " + mesh_name)
+				get_tree().quit(1)
+				return
+		if integrated_heads != 1:
+			push_error("Expected one integrated head: " + stage)
+			get_tree().quit(1)
+			return
+		var skeleton := model.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
+		var poses: Array[Transform3D] = []
+		for bone in skeleton.get_bone_count():
+			poses.append(skeleton.get_bone_pose(bone))
 		player.play()
 		var before := player.current_animation_position
 		await get_tree().create_timer(0.4).timeout
@@ -124,6 +147,28 @@ func _verify_design() -> void:
 			get_tree().quit(1)
 			return
 		player.pause()
+		var strength: float = {"Ordinary": 0.0, "Doubtful": 0.3, "Uncanny": 0.65, "Revealed": 1.0}[stage]
+		for node in model.find_children("*", "MeshInstance3D", true, false):
+			var mesh_node := node as MeshInstance3D
+			for shape in mesh_node.get_blend_shape_count():
+				var name: String = mesh_node.mesh.get_blend_shape_name(shape)
+				var expected: float = 1.0 - strength if name == "RevealStrength" else strength
+				if not is_equal_approx(mesh_node.get_blend_shape_value(shape), expected):
+					push_error("Wrong stage deformation after walking: " + stage + " / " + name)
+					get_tree().quit(1)
+					return
+		var changed_bones := 0
+		for bone in skeleton.get_bone_count():
+			if not skeleton.get_bone_pose(bone).is_equal_approx(poses[bone]):
+				changed_bones += 1
+		if changed_bones == 0:
+			push_error("Walking did not move the skeleton: " + stage)
+			get_tree().quit(1)
+			return
+		if DisplayServer.get_name() != "headless" and stage in ["Ordinary", "Revealed"]:
+			close_up = false
+			_frame_camera()
+			await _capture(stage.to_lower() + "_walking")
 		player.seek(0.05, true)
 		print("DESIGN PASS: ", stage, " / shapes=", morph_count, " / rig=", skeleton_count)
 		if DisplayServer.get_name() != "headless":
