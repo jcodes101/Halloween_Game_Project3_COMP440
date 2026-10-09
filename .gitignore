@@ -9,3 +9,6 @@ downloads/
 
 # Unused texture extractions from superseded facial-transfer drafts.
 /assets/monster/Mother*_Image_0.png
+
+# Blender/Python script caches.
+__pycache__/

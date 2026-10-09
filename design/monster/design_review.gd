@@ -117,6 +117,24 @@ func _verify_design() -> void:
 			push_error("Missing rig or facial shapes: " + stage)
 			get_tree().quit(1)
 			return
+		var integrated_heads := 0
+		for node in model.find_children("*", "MeshInstance3D", true, false):
+			var mesh_node := node as MeshInstance3D
+			var mesh_name := str(mesh_node.name).to_lower().replace(" ", "_")
+			if "integrated_face" in mesh_name:
+				integrated_heads += 1
+				if mesh_node.mesh.get_surface_count() < 3:
+					push_error("Head lacks skin/lip/interior surfaces: " + stage)
+					get_tree().quit(1)
+					return
+			if "hollow_eye" in mesh_name or "smile_lip_rim" in mesh_name or "smile_mouth_cavity" in mesh_name:
+				push_error("Superseded facial overlay exported: " + mesh_name)
+				get_tree().quit(1)
+				return
+		if integrated_heads != 1:
+			push_error("Expected one integrated head: " + stage)
+			get_tree().quit(1)
+			return
 		var skeleton := model.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
 		var poses: Array[Transform3D] = []
 		for bone in skeleton.get_bone_count():

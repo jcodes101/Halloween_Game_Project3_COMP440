@@ -10,8 +10,10 @@ The preview uses `assets/monster/MotherVisual.tscn`, an appearance-only reusable
 
 - All four stage GLBs import, instantiate, and render.
 - Each contains one skeleton and the retained walking animation.
-- Ordinary has five imported blend shapes; the other stages have eleven, including the new facial additions.
+- All stages have seven imported blend shapes across body, integrated head, and tooth rows.
 - Walking advances its playback position and changes actual bone poses in each stage.
+- Each stage contains one integrated head with skin/lip/interior surfaces; old separate eye, lip-rim, and mouth-plate objects are absent.
+- Blender audits confirm one connected manifold head, no folded front skin triangles at any stage, and real recessed cavity depths; see `assets/monster/everyday-jane/face_geometry_audit.json`.
 - Every stage retains the expected facial, arm, and reveal-strength values after walking.
 - Full-body and face captures are produced for all stages; Ordinary and Revealed also have side, back, and walking captures. These were inspected for clothing, hair, face seams, hollow eyes, tooth visibility, and the mostly human silhouette.
 - The final rendered test reports `ALL MOTHER DESIGN TESTS PASSED`.

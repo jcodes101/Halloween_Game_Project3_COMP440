@@ -131,8 +131,9 @@ for i,c in enumerate(new_world):
 def simple_material(name,color,rough=.65):
     m=bpy.data.materials.new(name);m.use_nodes=True;s=m.node_tree.nodes.get('Principled BSDF')
     s.inputs['Base Color'].default_value=(*color,1);s.inputs['Roughness'].default_value=rough;return m
-dark=simple_material('Mouth interior and hollow eyes',(.003,.002,.002))
-lip=simple_material('Muted natural lip rim',(.25,.07,.065))
+dark=simple_material('Mouth interior and hollow eyes',(.003,.002,.002),.95)
+dark.node_tree.nodes.get('Principled BSDF').inputs['Specular IOR Level'].default_value=.05
+lip=simple_material('Integrated natural lips',(.45,.15,.14))
 tooth=simple_material('Natural ivory teeth',(.66,.60,.48),.4)
 head_inverse=bone_matrices['Head_021'].inverted_safe()
 def front_y(x,z,offset=.001):
@@ -147,14 +148,6 @@ def skinned_object(name,verts,faces,material):
     o.parent=obj.parent;o.matrix_world=obj.matrix_world.copy()
     for p in data.polygons:p.use_smooth=True
     return o
-
-def oval(name,cx,cz,rx,rz,offset,mat,curve=0):
-    verts=[(cx,front_y(cx,cz,offset),cz)]
-    for i in range(48):
-        a=2*math.pi*i/48;x=cx+rx*math.cos(a);z=cz+rz*math.sin(a)+curve*math.cos(a)**2
-        verts.append((x,front_y(x,z,offset),z))
-    faces=[(0,i+1,(i+1)%48+1) for i in range(48)]
-    return skinned_object(name,verts,faces,mat)
 
 # Replace the fused scan hair with a complete short bob, keeping the detailed face graft.
 bob_mat=simple_material('Black bob satin strands',(.008,.009,.012),.68)
@@ -207,7 +200,7 @@ for v in skull.data.vertices:
     c=bone_matrices['Head_021']@v.co
     if c.y<-.045:
         front=max(0,min(1,(-c.y-.045)/.045))
-        nose=.032*math.exp(-((c.x-.003)/.015)**2-((c.z-1.412)/.025)**2)
+        nose=.022*math.exp(-((c.x-.003)/.015)**2-((c.z-1.412)/.025)**2)
         muzzle=.027*math.exp(-((c.x-.003)/.055)**2-((c.z-1.378)/.036)**2)
         cheeks=.007*math.exp(-((c.z-1.425)/.05)**2)
         c.y-=front*(nose+muzzle+cheeks)
@@ -291,7 +284,7 @@ for i,c in enumerate(face_coordinates):
     nose_mask=math.exp(-((c.x-.003)/.020)**4-((c.z-1.419)/.022)**4)
     weight*=1-nose_mask*.95
     eye_detail=max(math.exp(-((c.x-x)/.034)**4-((c.z-1.473)/.045)**4) for x in [-.031,.038])
-    lip_detail=math.exp(-((c.x-.003)/.060)**4-((c.z-1.379)/.022)**4)
+    lip_detail=0  # Lip color now comes from the actual modeled lip topology.
     weight*=max(eye_detail,lip_detail)
     skin_mask.data[i].color=(weight,weight,weight,1)
 attribute=nodes.new('ShaderNodeVertexColor');attribute.layer_name='CleanFaceBlend'
@@ -371,13 +364,30 @@ evaluated_head=skull.evaluated_get(bpy.context.evaluated_depsgraph_get())
 head_mesh=evaluated_head.to_mesh()
 surface=BVHTree.FromPolygons([evaluated_head.matrix_world@v.co for v in head_mesh.vertices],[list(p.vertices) for p in head_mesh.polygons])
 evaluated_head.to_mesh_clear()
-extras=[oval('Smile lip rim',.003,1.384,.046,.0105,.009,lip,.004),oval('Smile mouth cavity',.003,1.384,.043,.008,.012,dark,.004)]
-for side,x in [('Left',-.031),('Right',.038)]:extras.append(oval(side+' hollow eye',x,1.459,.029,.016,.012,dark))
+# Evaluate the smooth exterior analytically, rather than projecting new rings
+# onto the old triangulated approximation and inheriting tiny surface creases.
+def front_y(x,z,offset=0):
+    domain=max(0,1-((x-.003)/.100)**2-((z-1.455)/.135)**2)
+    y=-.022-.135*math.sqrt(domain)
+    front=max(0,min(1,(-y-.045)/.045))
+    nose=.022*math.exp(-((x-.003)/.015)**2-((z-1.412)/.025)**2)
+    muzzle=.027*math.exp(-((x-.003)/.055)**2-((z-1.378)/.036)**2)
+    cheeks=.007*math.exp(-((z-1.425)/.05)**2)
+    return y-front*(nose+muzzle+cheeks)-offset
+
+# Replace intact face skin with connected eyelid, socket and mouth topology.
+import sys
+sys.path.insert(0,str(root/'design/monster'))
+from integrate_mother_face import integrate_face
+head_smile,head_eyes,socket_faces,face_audit=integrate_face(
+    skull,bone_matrices['Head_021'],head_inverse,front_y,skin_mat,lip,dark)
+skull.name='Mother integrated face'
+extras=[]
 for row in [0,1]:
     verts=[];faces=[]
     for j in range(8):
-        x=.003+(j-3.5)*.0084;z=1.384+(.0035 if row==0 else -.0035)+.003*(abs(j-3.5)/3.5)**2;y=front_y(x,z,.014)
-        w=.0038;h=.0032 if row==0 else .0024;d=.0015;start=len(verts)
+        x=.003+(j-3.5)*.0084;z=1.379+(.0038 if row==0 else -.0038)+.0028*(abs(j-3.5)/3.5)**2;y=front_y(x,z,0)+.006
+        w=.0037;h=.0027 if row==0 else .0025;d=.0015;start=len(verts)
         verts.extend([(x+sx*w,y+sy*d,z+sz*h) for sx,sy,sz in [(-1,-1,-1),(1,-1,-1),(1,1,-1),(-1,1,-1),(-1,-1,1),(1,-1,1),(1,1,1),(-1,1,1)]])
         faces.extend([tuple(start+i for i in f) for f in [(0,3,2,1),(4,5,6,7),(0,1,5,4),(1,2,6,5),(2,3,7,6),(3,0,4,7)]])
     tooth_object=skinned_object('Upper teeth' if row==0 else 'Lower teeth',verts,faces,tooth)
@@ -389,10 +399,7 @@ for o in extras:
     o.shape_key_add(name='Basis');key=o.shape_key_add(name='RevealStrength')
     for i,v in enumerate(o.data.vertices):
         c=bone_matrices['Head_021']@v.co
-        if 'Smile' in o.name or 'teeth' in o.name:c.x=.003+(c.x-.003)*.78;c.z=1.384+(c.z-1.384)*.65
-        elif 'hollow eye' in o.name:
-            cx=-.031 if o.name.startswith('Left') else .038
-            c.x=cx+(c.x-cx)*.55;c.z=1.459+(c.z-1.459)*.65
+        c.x=.003+(c.x-.003)*.78;c.z=1.379+(c.z-1.379)*.65
         key.data[i].co=head_inverse@c
 
 def select_for_export(with_extras):
@@ -401,11 +408,12 @@ def select_for_export(with_extras):
         o.select_set(True);parent=o.parent
         while parent:parent.select_set(True);parent=parent.parent
     bpy.context.view_layer.objects.active=obj
-stages=[('MotherOrdinary',0,False),('MotherDoubtful',.3,True),('MotherUncanny',.65,True),('MotherRevealed',1,True)]
+stages=[('MotherOrdinary',0,True),('MotherDoubtful',.3,True),('MotherUncanny',.65,True),('MotherRevealed',1,True)]
 for name,strength,with_extras in stages:
     smile.value=strength;eyes.value=strength;limbs.value=strength
     head_smile.value=strength;head_eyes.value=strength
     patch_smile.value=strength;patch_eyes.value=strength
+    for polygon_index in socket_faces:skull.data.polygons[polygon_index].material_index=5 if strength>=.65 else 4
     for o in extras:o.data.shape_keys.key_blocks['RevealStrength'].value=1-strength
     select_for_export(with_extras)
     bpy.ops.export_scene.gltf(filepath=str(exports/(name+'.glb')),export_format='GLB',use_selection=True,export_animations=True,export_morph=True,export_morph_animation=False)
@@ -413,5 +421,6 @@ for name,strength,with_extras in stages:
 for helper in [face_patch,bake_source,bake_target]:
     helper.hide_set(True);helper.hide_render=True
 select_for_export(True);bpy.ops.wm.save_as_mainfile(filepath=str(out/'Mother_Detailed.blend'))
-(out/'build_manifest.json').write_text(json.dumps({'source':'mimic_copy.blend','stages':[s[0] for s in stages],'region_faces':counts,'features':['short black bob','white short-sleeved shirt','navy denim','broadened waist/hips','UncannySmile','HollowEyeSockets','StretchedArms','modeled teeth and mouth','skinned facial additions']},indent=2))
+(out/'build_manifest.json').write_text(json.dumps({'source':'mimic_copy.blend','stages':[s[0] for s in stages],'region_faces':counts,'features':['short black bob','white short-sleeved shirt','navy denim','broadened waist/hips','UncannySmile','HollowEyeSockets','StretchedArms','connected recessed eye sockets','real oral cavity with integrated lip topology','teeth fitted inside mouth','single manifold head mesh']},indent=2))
+(out/'face_geometry_audit.json').write_text(json.dumps(face_audit,indent=2))
 print('FINISHED_MOTHER_VARIANTS',flush=True)
