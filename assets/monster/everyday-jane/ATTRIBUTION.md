@@ -7,5 +7,6 @@
 - License: [Creative Commons Attribution 4.0 International](https://creativecommons.org/licenses/by/4.0/)
 - The user supplied the downloaded GLB on October 8, 2026. Embedded glTF metadata also records this author, source, title, and license.
 - `EverydayJane.glb` is the unmodified source model; no appearance or mesh changes have been made.
+- `mimic_copy.blend` is the user's Blender working copy of this asset. It includes scene objects in addition to the imported character. No modifications were made by the inspection script.
 
 Retain this attribution, license link, and a description of later modifications when distributing the asset or game.
