@@ -1,2 +1,5 @@
 memory/
 downloads/
+# Google Drive quota error responses; these are not valid model assets.
+/assets/vendor/quaternius/ultimate-modular-women/all-together.blend
+/assets/vendor/quaternius/ultimate-modular-women/all-together.fbx
