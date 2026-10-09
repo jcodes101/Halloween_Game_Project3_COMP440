@@ -50,8 +50,17 @@ does not change hiding or door state. A hiding place entered in view remains kno
 
 Connect `capture_requested(monster)` to the capture presentation and player-control
 owner. The lab uses a face camera for one second, followed by a restart screen.
-Connect `cue_requested(text)` to captions and approved future audio. No audio asset
-or autoload was introduced. `state_changed(previous, current)` supports presentation.
+Connect `cue_requested(text)` to captions. `state_changed(previous, current)`
+supports presentation. No autoload was introduced.
+
+The lab's `MonsterLabAudio` is an independent presentation adapter. Call
+`footstep(actor, tag, enabled)` every physics frame for actual floor movement.
+The lab uses `player_step` and `mother_step`; movement speed determines cadence.
+Call `effect(event, world_position)` for `door_open`, `door_close`, `locked_door`,
+and `item_pickup` from the system that owns that successful interaction. Emit door
+audio only when its state changes and pickup audio only when the pickup succeeds.
+Call `reset_audio()` on restart. Speakers use spatial attenuation; this prototype
+does not simulate wall muffling. Confirm the production mix with headphones.
 
 For restart, reset every owning system before resuming gameplay, then call
 `reset_controller(spawn_position)`. This clears target, search, interception,

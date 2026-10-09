@@ -11,6 +11,7 @@ func run(world: Node) -> void:
 	await _wait(0.2)
 	_check(lab.navigation_is_ready, "navigation baked and synchronized")
 	await _player_controls()
+	await _audio_events()
 	await _recognition_and_capture()
 	await _concealment_rules()
 	await _search_completion()
@@ -89,6 +90,7 @@ func _recognition_and_capture() -> void:
 	lab.suspicion_level = 50
 	await _wait(0.6)
 	_check(lab.monster.monster_state == MonsterController.State.STALKING, "doubtful recognition starts stalking")
+	_check(int(lab.audio.events.get("mother_step", 0)) > 0, "physical monster movement emits spatial footsteps")
 	_check(lab.monster.global_position.distance_to(lab.player.global_position) < before, "stalking follows a real navigation path")
 	before = lab.monster.global_position.distance_to(lab.player.global_position)
 	lab.suspicion_level = 100
@@ -129,6 +131,33 @@ func _recognition_and_capture() -> void:
 
 func read_monster_observation() -> MonsterObservation:
 	return injected_observation
+
+func _audio_events() -> void:
+	await _reset()
+	Input.action_press("monster_test_forward")
+	await _wait(0.5)
+	Input.action_release("monster_test_forward")
+	_check(int(lab.audio.events.get("player_step", 0)) > 0, "actual player movement triggers footsteps")
+	await _wait(0.15)
+	var steps: int = lab.audio.events.get("player_step", 0)
+	await _wait(0.5)
+	_check(int(lab.audio.events.get("player_step", 0)) == steps, "stationary player emits no footsteps")
+	lab.request_basement_door()
+	_check(int(lab.audio.events.get("locked_door", 0)) == 1 and lab.door_state == MonsterObservation.DoorState.CLOSED, "locked-door attempt plays handle jiggle without opening")
+	lab.open_basement_door()
+	lab.open_basement_door()
+	_check(int(lab.audio.events.get("door_open", 0)) == 1, "door opening sound occurs once per actual transition")
+	lab.enter_closet()
+	_check(int(lab.audio.events.get("door_close", 0)) == 1, "closet closing triggers wooden door audio")
+	lab.pickup_test_item()
+	lab.pickup_test_item()
+	_check(int(lab.audio.events.get("item_pickup", 0)) == 1 and not lab.pickup_visual.visible, "sample pickup plays once and removes the sample")
+	var playing := false
+	for speaker in lab.audio.get_children():
+		playing = playing or (speaker is AudioStreamPlayer3D and speaker.playing and speaker.stream.get_length() > 0)
+	_check(playing, "approved audio streams decode and start spatial playback")
+	await _reset()
+	_check(lab.audio.events.is_empty() and lab.audio.get_child_count() == 0 and lab.pickup_visual.visible, "restart stops audio and restores sample item")
 
 func _concealment_rules() -> void:
 	# This stationary fixture isolates memory/stillness from locomotion.

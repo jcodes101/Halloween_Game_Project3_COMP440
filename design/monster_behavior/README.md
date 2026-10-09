@@ -53,8 +53,14 @@ The partner's house and actual clue, lock, crowbar, key and attic escape systems
 still need integration. See `systems/monster/INTEGRATION.md`.
 
 The current walking animation is reused and sped up during pursuit. There are no
-new chase/capture animation assets or audio files; important footsteps are captioned.
-The test room uses simple geometry and is not the final house.
+new chase/capture animation assets. Approved CC0 audio now covers player and mother
+footsteps, wooden doors opening/closing, locked handles, and sample item pickup.
+Important monster footsteps remain captioned. Press E at the labeled SAMPLE ITEM
+to try pickup audio; it resets with R and does not grant a real inventory item.
+Try the basement door before preparing the route to hear the locked handle.
+Headphones help judge the mother's direction; sound volume falls with distance.
+The test room uses simple geometry and is not the final house. Source licenses are
+in `assets/audio/SOURCES.md`. Audio levels are initial mix choices to tune by ear.
 
 Run automated checks from the project folder with your Godot executable:
 

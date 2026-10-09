@@ -8,6 +8,10 @@ const CLOSET_INSIDE := Vector3(-7, 0.05, -0.3)
 const CLOSET_CHECK := Vector3(-7, 0.05, 1.8)
 const LATCH_POSITION := Vector3(4, 0.75, 0)
 const EXIT_POSITION := Vector3(-7, 0.75, 6)
+const PICKUP_POSITION := Vector3(4, 0.75, 4)
+var audio: MonsterLabAudio
+var pickup_visual: MeshInstance3D
+var sample_item_taken := false
 
 var suspicion_level := 0.0
 var escape_progress: MonsterObservation.EscapePhase = MonsterObservation.EscapePhase.EXPLORING
@@ -44,6 +48,8 @@ func _ready() -> void:
 	_build_world()
 	_build_actors()
 	_build_interface()
+	audio = MonsterLabAudio.new()
+	add_child(audio)
 	# Let newly created collider shapes reach the physics server before parsing.
 	await get_tree().physics_frame
 	region.bake_navigation_mesh(false)
@@ -54,7 +60,7 @@ func _ready() -> void:
 		push_error("Monster lab navigation did not bake.")
 		get_tree().quit(1)
 		return
-	_set_door_open(closet_door, closet_link, true)
+	_set_door_open(closet_door, closet_link, true, false)
 	if "--verify-monster" in OS.get_cmdline_user_args():
 		var suite := preload("res://tests/monster/verify_monster.gd").new()
 		add_child(suite)
@@ -121,6 +127,14 @@ func _build_world() -> void:
 	_world_label("PREPARE BASEMENT ROUTE\nE to activate", LATCH_POSITION + Vector3.UP * 1.15)
 	_world_label("SAFE TEST EXIT\nE to finish", EXIT_POSITION + Vector3.UP * 1.15)
 	_world_label("ACCESS LOOP", Vector3(8, 2.4, -3))
+	pickup_visual = MeshInstance3D.new()
+	var pickup_mesh := BoxMesh.new()
+	pickup_mesh.size = Vector3(0.25, 0.25, 0.25)
+	pickup_visual.mesh = pickup_mesh
+	pickup_visual.material_override = _material(Color("d7c9a8"))
+	pickup_visual.position = PICKUP_POSITION
+	add_child(pickup_visual)
+	_world_label("SAMPLE ITEM\nE to pick up", PICKUP_POSITION + Vector3.UP * 0.6)
 	interception_marker = Marker3D.new()
 	interception_marker.position = Vector3(0, 0.05, -4.2)
 	add_child(interception_marker)
@@ -267,6 +281,12 @@ func _process(delta: float) -> void:
 		if _capture_elapsed >= 1.0:
 			_show_end("CAPTURED\nThe disguise is gone.\nPress R to restart the test.")
 
+func _physics_process(_delta: float) -> void:
+	if audio == null or player == null or monster == null:
+		return
+	audio.footstep(player, "player_step", outcome.is_empty() and not is_hidden)
+	audio.footstep(monster, "mother_step", outcome.is_empty())
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		match event.physical_keycode:
@@ -289,6 +309,8 @@ func _near(point: Vector3) -> bool:
 func _interaction_prompt() -> String:
 	if is_hidden:
 		return "E — leave closet. Movement keys interrupt stillness; looking does not."
+	if not sample_item_taken and _near(PICKUP_POSITION) and _facing(PICKUP_POSITION):
+		return "E — pick up sample item (sound test)."
 	if _near(CLOSET_CHECK) and _facing(Vector3(-7, 1.2, 0.9)):
 		return "E — hide in closet. Get out of her sight first."
 	if _near(LATCH_POSITION) and _facing(LATCH_POSITION):
@@ -304,6 +326,8 @@ func _interact() -> void:
 		return
 	if is_hidden:
 		leave_closet()
+	elif not sample_item_taken and _near(PICKUP_POSITION) and _facing(PICKUP_POSITION):
+		pickup_test_item()
 	elif _near(CLOSET_CHECK) and _facing(Vector3(-7, 1.2, 0.9)):
 		enter_closet()
 	elif _near(LATCH_POSITION) and _facing(LATCH_POSITION):
@@ -320,6 +344,7 @@ func prepare_basement_route() -> void:
 func request_basement_door() -> void:
 	if escape_progress == MonsterObservation.EscapePhase.EXPLORING:
 		cue = "The test latch is still locked. Activate the route pedestal first."
+		audio.effect("locked_door", basement_door.global_position)
 		return
 	door_requested = true
 	if monster.arrived_for_interception:
@@ -365,10 +390,22 @@ func _on_hiding_checked(point: Vector3) -> void:
 		player.hide_locked = false
 		cue = "[Closet opens] She saw you enter. Run!"
 
-func _set_door_open(door: StaticBody3D, link: NavigationLink3D, opened: bool) -> void:
+func _set_door_open(door: StaticBody3D, link: NavigationLink3D, opened: bool, audible: bool = true) -> void:
+	var was_open: bool = door.get_meta("audio_open", false)
+	if audible and audio != null and was_open != opened:
+		audio.effect("door_open" if opened else "door_close", door.global_position)
+	door.set_meta("audio_open", opened)
 	(door.get_child(0) as CollisionShape3D).set_deferred("disabled", opened)
 	(door.get_child(1) as MeshInstance3D).visible = not opened
 	link.enabled = opened
+
+func pickup_test_item() -> void:
+	if sample_item_taken:
+		return
+	sample_item_taken = true
+	pickup_visual.visible = false
+	audio.effect("item_pickup", PICKUP_POSITION)
+	cue = "[Item picked up] Sample only; no escape item or inventory was changed."
 
 func _on_capture(actor: Node3D) -> void:
 	if not outcome.is_empty():
@@ -403,6 +440,9 @@ func _show_end(text: String) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 func reset_lab(player_position: Vector3 = PLAYER_SPAWN, monster_position: Vector3 = MONSTER_SPAWN) -> void:
+	audio.reset_audio()
+	sample_item_taken = false
+	pickup_visual.visible = true
 	for action in ["monster_test_forward", "monster_test_back", "monster_test_left", "monster_test_right", "monster_test_sprint"]:
 		Input.action_release(action)
 	suspicion_level = 0.0
@@ -422,8 +462,8 @@ func reset_lab(player_position: Vector3 = PLAYER_SPAWN, monster_position: Vector
 	monster.tuning = preload("res://systems/monster/prototype_tuning.tres").duplicate() as MonsterTuning
 	monster.reset_controller(monster_position)
 	monster.look_at(Vector3(player_position.x, monster_position.y, player_position.z))
-	_set_door_open(basement_door, basement_link, false)
-	_set_door_open(closet_door, closet_link, true)
+	_set_door_open(basement_door, basement_link, false, false)
+	_set_door_open(closet_door, closet_link, true, false)
 	cue = "New test. 1 unaware · 2 doubtful · 3 certain."
 	if DisplayServer.get_name() != "headless" and not "--verify-monster" in OS.get_cmdline_user_args():
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
