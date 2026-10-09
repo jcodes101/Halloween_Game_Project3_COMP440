@@ -1,7 +1,16 @@
-# Mother editing progress
+# Mother model adaptation
 
-Created separate `Mother_Detailed.blend` and `Mother_Detailed.glb` from the user's saved copy. The original `mimic_copy.blend` is preserved. The GLB used by the preview is `assets/monster/MotherDetailed.glb`; the editing-source folder is excluded from Godot scanning with `.gdignore`.
+The current variants replace the earlier incomplete material-only draft. The original `EverydayJane.glb` and `mimic_copy.blend` are preserved.
 
-The first material pass selects hair and clothing faces using source texture samples and bone weights. Godot 4.7.2 import, rendering, and walking advancement were tested. Visual inspection showed an incomplete white-shirt boundary, incomplete hair recoloring, and jeans that still appear source blue. This is a draft, not a finished mother appearance. The color selection needs refinement or manual texture work before acceptance. Shortening the hair, adjusting build, facial shape controls, teeth, and hollow eyes are not yet implemented.
+Implemented changes:
+- Complete short black bob replacing the fused long source hair.
+- Smooth continuous head with transferred facial texture, brows, eyes, lips, and shaped nose.
+- White short-sleeved shirt, navy denim retaining the source seams, and a modestly broader waist/hip silhouette.
+- Rigged mouth interior, lip rim, two rows of teeth, and dark eye surfaces.
+- Ordinary through Revealed exports with facial and arm deformation controls.
 
-Next work: replace coarse material selection with clean region masks, review the ordinary appearance, then inspect facial geometry for the subtle horror stages. Preserve attribution from `assets/monster/everyday-jane/ATTRIBUTION.md` for all exported variants.
+`finish_mother_design.py` rebuilds the Blender adaptation and four GLBs from the saved source. Texture transfer uses static posed copies so Blender's bake does not mix rest and animated coordinates. Shader results are baked before export to preserve their appearance in Godot.
+
+`Mother_Detailed.blend` contains the editable adaptation and texture-transfer helpers. Helpers are excluded from GLB export. The Godot preview verifies rig and blend-shape presence, animation advancement, and captures each stage for visual review. See `GODOT_TEST.md` for the validation scope.
+
+Earlier `MotherDetailed.glb`, `Mother_Detailed.glb`, and associated drafts remain preserved but are not used by the current preview. The adaptation is detailed stylized art, not photorealistic. Only the source walking animation is currently supplied.
