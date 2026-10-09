@@ -4,7 +4,7 @@ var player: AnimationPlayer
 var status: Label
 
 func _ready() -> void:
-	var model_scene := load("res://assets/monster/Casual.gltf") as PackedScene
+	var model_scene := load("res://assets/monster/Mother.gltf") as PackedScene
 	if model_scene == null:
 		push_error("Could not import Casual.gltf")
 		get_tree().quit(1)
@@ -81,6 +81,10 @@ func _ready() -> void:
 		get_tree().quit()
 
 func _play(animation_name: String) -> void:
+	player.stop()
+	if player.has_animation("RESET"):
+		player.play("RESET")
+		player.advance(0.0)
 	player.get_animation(animation_name).loop_mode = Animation.LOOP_LINEAR
 	player.play(animation_name)
-	status.text = "Mother base model - " + animation_name + " (appearance unmodified)"
+	status.text = "Mother design - " + animation_name + " (black-haired variant)"
