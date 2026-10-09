@@ -122,6 +122,7 @@ func _recognition_and_capture() -> void:
 	var captured := await _until(func() -> bool: return lab.outcome == "captured", 2.0)
 	_check(captured and lab.monster.monster_state == MonsterController.State.CAPTURED, "reachable close pursuit captures once")
 	_check(lab.capture_count == 1 and not lab.player.movement_enabled and lab.scare_camera.current, "capture freezes movement and activates the close-up")
+	_check(int(lab.audio.events.get("capture_sting", 0)) == 1 and abs(MonsterLabAudio.EFFECTS["capture_sting"].get_length() - 1.0) < 0.01, "capture triggers one short jump-scare sting with the close-up")
 	await _capture_image("capture_closeup")
 	await _wait(1.1)
 	_check(lab.end_panel.visible, "close-up ends on captured/restart screen")

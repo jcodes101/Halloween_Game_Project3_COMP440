@@ -418,6 +418,7 @@ func _on_capture(actor: Node3D) -> void:
 	scare_camera.global_position = actor.global_position + forward * 0.6 + Vector3.UP * player.eye_height
 	scare_camera.look_at(actor.global_position + forward * 0.17 + Vector3.UP * 1.46)
 	scare_camera.current = true
+	audio.effect("capture_sting", scare_camera.global_position)
 	_capture_elapsed = 0.0
 	cue = "She was never your mother."
 	if DisplayServer.get_name() != "headless":

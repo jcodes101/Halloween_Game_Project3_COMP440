@@ -32,7 +32,9 @@ closed door. A shadow and captions warn of her arrival. Opening the door reveals
 her for one second before pursuit. You retain movement during the reveal.
 
 Capture gives a brief revealed-face close-up, then a captured screen. There are
-no flashing effects. The green **SAFE TEST EXIT** tests escape and restart; it
+no flashing effects. A one-second approved horror sting plays with the close-up;
+adjust `capture_volume_db` in `systems/monster/lab_audio.gd` to tune its volume.
+The green **SAFE TEST EXIT** tests escape and restart; it
 does not implement the game's attic-window escape.
 
 ## Approved prototype settings

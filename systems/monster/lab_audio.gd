@@ -7,7 +7,9 @@ const EFFECTS = {
 	"door_close": preload("res://assets/audio/door_close.wav"),
 	"locked_door": preload("res://assets/audio/locked_door.ogg"),
 	"item_pickup": preload("res://assets/audio/item_pickup.ogg"),
+	"capture_sting": preload("res://assets/audio/capture_sting.wav"),
 }
+@export_range(-40.0, 0.0) var capture_volume_db := -8.0
 var events: Dictionary = {}
 var _positions: Dictionary = {}
 var _distances: Dictionary = {}
@@ -28,7 +30,7 @@ func footstep(actor: CharacterBody3D, tag: String, enabled: bool) -> void:
 
 func effect(event: String, location: Vector3) -> void:
 	if EFFECTS.has(event):
-		_play(EFFECTS[event], location, event, -12.0)
+		_play(EFFECTS[event], location, event, capture_volume_db if event == "capture_sting" else -12.0)
 
 func _play(clip: AudioStream, location: Vector3, event: String, volume: float) -> void:
 	var speaker := AudioStreamPlayer3D.new()
