@@ -1,5 +1,11 @@
 # Godot model preview test
 
+## Current preview: Everyday Jane
+
+The preview now loads `assets/monster/everyday-jane/EverydayJane.glb`. Tested in Godot 4.7.2: successful import, rendering, and advancement of its single walking clip. Full-body screenshot inspected after correcting camera framing for the source's unskinned bounds. This source has no facial morph targets and no supplied idle/run clips. Original mother placeholders are preserved. Launch `project.godot` and press F5 to view the source model and its Walk button.
+
+## Earlier placeholder tests
+
 The navy-trouser revision was reimported and rendered successfully; Idle/Walk/Run/Wave advancement passed again. The captured viewport was inspected and shows navy trousers. This is a material color change, not a finished denim texture.
 
 The preview now loads `assets/monster/Mother.gltf`, a black-haired design variant. Its rendered preview and Idle/Walk/Run/Wave playback were also tested successfully in Godot 4.7.2. The original Casual source remains preserved.

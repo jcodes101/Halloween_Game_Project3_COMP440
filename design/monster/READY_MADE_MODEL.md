@@ -1,5 +1,9 @@
 # Ready-made detailed mother candidate
 
+## Received and tested
+
+The user supplied a 7,122,580-byte self-contained GLB in `downloads/mimic/`. The unmodified source is tracked at `assets/monster/everyday-jane/EverydayJane.glb`, with attribution alongside it. Embedded metadata confirms CC BY 4.0 and XRProfXR. Inspection found a 25-joint skeleton, one walking animation, one embedded image and material, and no morph targets. Godot 4.7.2 import, rendered runtime, and walking animation advancement passed. The source preview shows blonde hair, a blue sleeveless shirt, and blue jeans. Face, hair, clothing, and horror adaptations remain unfinished; idle and chase animations are not supplied in this GLB.
+
 Blender 5.2.2 LTS was installed successfully for later adaptation work and its executable version was verified. Local executable: `C:\Users\kvong\AppData\Local\Programs\Blender5.2\blender.exe`. No MPFB extension was installed. Installer files remain in ignored `downloads/`.
 
 The user changed course from custom MPFB creation to adapting an existing detailed model on October 8, 2026. Blender installation is approved for later use; MPFB is not being installed.

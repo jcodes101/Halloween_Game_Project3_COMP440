@@ -2,9 +2,10 @@ extends Node3D
 
 var player: AnimationPlayer
 var status: Label
+var preview_animations: Array[String] = []
 
 func _ready() -> void:
-	var model_scene := load("res://assets/monster/Mother.gltf") as PackedScene
+	var model_scene := load("res://assets/monster/everyday-jane/EverydayJane.glb") as PackedScene
 	if model_scene == null:
 		push_error("Could not import Casual.gltf")
 		get_tree().quit(1)
@@ -29,7 +30,12 @@ func _ready() -> void:
 	print("Model bounds: ", bounds)
 	var center := bounds.get_center()
 	var height := maxf(bounds.size.y, 1.0)
+	# This source's unskinned mesh bounds lie along Z; its rig stands it upright.
+	if bounds.size.z > bounds.size.y * 2.0:
+		height = bounds.size.z
+		center = Vector3(0, height * 0.5, 0)
 	var camera := Camera3D.new()
+	camera.fov = 35.0
 	add_child(camera)
 	camera.position = center + Vector3(0, height * 0.1, height * 2.0)
 	camera.look_at(center)
@@ -53,18 +59,21 @@ func _ready() -> void:
 	ui.add_child(column)
 	status = Label.new()
 	column.add_child(status)
-	for animation_name in ["Idle", "Walk", "Run", "Wave"]:
-		if not player.has_animation(animation_name):
-			push_error("Missing animation: " + animation_name)
-			get_tree().quit(1)
-			return
+	for animation_name in player.get_animation_list():
+		if animation_name == "RESET":
+			continue
+		preview_animations.append(str(animation_name))
 		var button := Button.new()
-		button.text = animation_name
+		button.text = "Walk" if "walking" in str(animation_name).to_lower() else str(animation_name)
 		button.pressed.connect(_play.bind(animation_name))
 		column.add_child(button)
-	_play("Idle")
+	if preview_animations.is_empty():
+		push_error("Model has no playable animations")
+		get_tree().quit(1)
+		return
+	_play(preview_animations[0])
 	if "--verify-model" in OS.get_cmdline_user_args():
-		for animation_name in ["Idle", "Walk", "Run", "Wave"]:
+		for animation_name in preview_animations:
 			_play(animation_name)
 			await get_tree().create_timer(0.3).timeout
 			if player.current_animation_position <= 0.0:
@@ -72,7 +81,7 @@ func _ready() -> void:
 				get_tree().quit(1)
 				return
 			print("PLAYBACK PASS: ", animation_name)
-		_play("Idle")
+		_play(preview_animations[0])
 		player.advance(0.5)
 		if DisplayServer.get_name() != "headless":
 			await RenderingServer.frame_post_draw
@@ -87,4 +96,4 @@ func _play(animation_name: String) -> void:
 		player.advance(0.0)
 	player.get_animation(animation_name).loop_mode = Animation.LOOP_LINEAR
 	player.play(animation_name)
-	status.text = "Mother design - " + animation_name + " (black-haired variant)"
+	status.text = "Everyday Jane - source model preview"
