@@ -203,6 +203,8 @@ func _handle_interception(observation: MonsterObservation, delta: float) -> void
 			_walk_to(interception_anchor.global_position, tuning.stalk_speed, delta)
 			if _flat_distance(global_position, interception_anchor.global_position) <= tuning.arrival_distance and point_reachable(interception_anchor.global_position):
 				arrived_for_interception = true
+				var doorway_direction := interception_anchor.global_basis.z
+				rotation.y = atan2(-doorway_direction.x, -doorway_direction.z)
 				interception_ready.emit()
 				cue_requested.emit("[Footsteps stop just beyond the basement door]")
 		if arrived_for_interception:
@@ -359,4 +361,3 @@ func reset_controller(position: Vector3) -> void:
 
 static func _flat_distance(a: Vector3, b: Vector3) -> float:
 	return Vector2(a.x - b.x, a.z - b.z).length()
-

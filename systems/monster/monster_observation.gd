@@ -12,4 +12,3 @@ var player_is_still := true
 var hiding_check_position := Vector3.ZERO
 var door_state: DoorState = DoorState.CLOSED
 var escape_progress: EscapePhase = EscapePhase.EXPLORING
-

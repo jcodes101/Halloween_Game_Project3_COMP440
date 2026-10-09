@@ -427,4 +427,3 @@ func reset_lab(player_position: Vector3 = PLAYER_SPAWN, monster_position: Vector
 	cue = "New test. 1 unaware · 2 doubtful · 3 certain."
 	if DisplayServer.get_name() != "headless" and not "--verify-monster" in OS.get_cmdline_user_args():
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-

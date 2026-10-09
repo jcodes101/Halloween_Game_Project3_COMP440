@@ -13,4 +13,3 @@ extends Resource
 @export_range(10, 180) var sight_angle_degrees := 140.0
 @export var search_radius := 3.0
 @export var arrival_distance := 0.45
-

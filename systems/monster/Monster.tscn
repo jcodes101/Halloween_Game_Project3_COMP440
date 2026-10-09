@@ -6,4 +6,3 @@
 [node name="MotherMonster" type="CharacterBody3D"]
 script = ExtResource("1")
 tuning = ExtResource("2")
-
