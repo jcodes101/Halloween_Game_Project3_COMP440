@@ -1,5 +1,9 @@
 # Custom mother model
 
+## Current status: superseded
+
+The user changed direction to adapting a ready-made detailed model, while authorizing Blender installation for later use. Do not continue the MPFB custom creation workflow without a new request. See `READY_MADE_MODEL.md` for the replacement candidate.
+
 The user selected a custom MakeHuman/MPFB character on October 8, 2026, replacing the low-poly direction for the monster. The previous model is retained as a tested placeholder.
 
 ## Target appearance
