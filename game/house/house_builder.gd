@@ -344,10 +344,10 @@ func _prop(asset: String, at: Vector3, size: Vector3, yaw: float = 0, solid: boo
 		box(at+Vector3.UP*size.y/2,dimensions,Color.WHITE,true,false)
 	return item
 
-func _lamp(at: Vector3, energy: float = 0.75) -> void:
+func _lamp(at: Vector3, energy: float = 0.75, color: Color = Color("ffd49e")) -> void:
 	var light := OmniLight3D.new()
 	light.position = at
-	light.light_color = Color("ffd49e")
+	light.light_color = color
 	light.light_energy = energy
 	light.omni_range = 8
 	add_child(light)
@@ -409,6 +409,10 @@ func _furnish() -> void:
 	for x in [-8.5,-5.5,5.5,8.5]:
 		for z in [2.0,5.0,8.0]:
 			_prop("cardboardBoxClosed",Vector3(x,-3.6,z),Vector3(1.2,1.0,1.0))
+	# Stacked storage boxes create a reachable hiding alcove in the basement.
+	for p in [Vector3(-8.5,-2.6,5.0),Vector3(-8.5,-2.6,8.0),Vector3(-5.5,-2.6,8.0),Vector3(-5.5,-2.6,5.0),Vector3(-9.5,-3.6,6.5),Vector3(-9.5,-2.6,6.5)]:
+		_prop("cardboardBoxClosed",p,Vector3(1.1,0.95,1.1))
+	hide_spots.append({"title":"Hide behind storage boxes","kind":"hide","position":Vector3(-4.2,-2.6,6.5),"prompt":"E — hide behind storage boxes","hide_config":{"entry":Vector3(-4.2,-3.6,6.5),"path":[Vector3(-7.2,-3.6,6.5)],"crouch_height":0.95,"crouch_camera_y":0.78}})
 	_prop("washer",Vector3(8,-3.6,-8),Vector3(1.1,1.2,1.0))
 	_prop("dryer",Vector3(9.5,-3.6,-8),Vector3(1.1,1.2,1.0))
 	_prop("table",Vector3(5,-3.6,-8),Vector3(3,0.9,1.0))
@@ -436,11 +440,29 @@ func _furnish() -> void:
 	key.add_child(ring)
 	var stem := box(key.position+Vector3(0.18,0,0),Vector3(0.32,0.045,0.045),Color("c9a854"),false)
 	stem.reparent(key,true)
-	for p in [Vector3(-6,2.8,3),Vector3(-5,2.8,-3),Vector3(6,2.8,-3),Vector3(0,2.8,9),Vector3(-6,6.3,-3),Vector3(6,6.3,-3),Vector3(0,6.3,2),Vector3(-6,-0.8,5),Vector3(5,-0.8,-7),Vector3(0,9.8,3)]:
-		_lamp(p,0.8)
+	# Warm household lamps and cool, dim basement lamps.
+	for p in [Vector3(-6,2.8,3),Vector3(-5,2.8,-3),Vector3(6,2.8,-3),Vector3(0,2.8,9),Vector3(-6,6.3,-3),Vector3(6,6.3,-3),Vector3(0,6.3,2),Vector3(0,9.8,3)]:
+		_lamp(p,0.8,Color("ffd49e"))
+	_lamp(Vector3(-6,-0.8,5),0.55,Color("b2c4d4"))
+	_lamp(Vector3(5,-0.8,-7),0.65,Color("c0cbd4"))
 	for p in [Vector3(-9,0,6),Vector3(9,0,9),Vector3(-9,3.6,9)]:
 		_prop("pottedPlant",p,Vector3(0.8,1.6,0.8))
 	_prop("coatRackStanding",Vector3(-9,0,10),Vector3(0.8,2,0.8))
+	# Ceiling fans in living room and dining room.
+	_prop("ceilingFan",Vector3(-6,3.3,5),Vector3(1.8,0.35,1.8),0,false)
+	_prop("ceilingFan",Vector3(6,3.3,-3),Vector3(1.8,0.35,1.8),0,false)
+	# Floor lamps in living room and foyer.
+	_prop("lampRoundFloor",Vector3(-10,0,3.5),Vector3(0.6,2.0,0.6))
+	_prop("lampRoundFloor",Vector3(2.5,0,10.5),Vector3(0.6,2.0,0.6))
+	# Side tables next to seating and beds.
+	_prop("sideTable",Vector3(-1.8,0,5.5),Vector3(0.8,0.7,0.8))
+	_prop("sideTable",Vector3(-4.0,3.6,-5.5),Vector3(0.8,0.7,0.8))
+	# Books on shelves and desks.
+	_prop("books",Vector3(-2,0.8,3.5),Vector3(0.9,0.45,0.35),0,false)
+	_prop("books",Vector3(8.5,0.9,-9),Vector3(1.2,0.45,0.4),0,false)
+	_prop("books",Vector3(3,4.4,-10.5),Vector3(1.1,0.45,0.4),0,false)
+	_prop("books",Vector3(-9,4.4,5),Vector3(1.1,0.45,0.35),0,false)
+	_prop("books",Vector3(8,4.5,-9.5),Vector3(0.8,0.35,0.4),PI/2,false)
 
 func _attic() -> void:
 	boards = model("building","barricade-doorway-a",Vector3(0,7.03,-3),Vector3(1.9,0.12,1.9))

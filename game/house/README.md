@@ -17,7 +17,7 @@ generated layout before play.
 
 The main stairs are near the front entrance. Basement stairs start **inside the
 kitchen** on the left side of the house. Doorways and side rooms produce dead ends.
-Closet, under-bed, and behind-sofa hiding use collision-checked entry and exit routes.
+Closet, under-bed, behind-sofa, and basement storage-box hiding use collision-checked entry and exit routes.
 
 ## Escape route and controls
 

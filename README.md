@@ -77,7 +77,8 @@ boarded ceiling hatch in the upstairs hall, then E to climb the pull-down ladder
 Unlock the attic window, **jump through with Space + forward**, and land outside
 to escape. Capturing you starts a close-up and jump-scare sting before restart.
 Press 2 or 3 to test stalking or pursuit earlier. Follow the on-screen prompts.
-Hiding spots include behind the sofa, under both beds, and in the upstairs closet.
+Hiding spots include behind the sofa, under both beds, in the upstairs closet,
+and behind storage boxes in the basement.
 E leaves cover; moving also exits cover and resets
 the stillness timer. Hiding transitions temporarily lock movement.
 
