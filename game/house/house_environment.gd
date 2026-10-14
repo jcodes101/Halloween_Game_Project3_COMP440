@@ -32,9 +32,11 @@ func _ready() -> void:
 	super()
 	_player.position = Vector3(0,0.1,10.5)
 	_player.allow_jump = true
-	_player.floor_block_on_wall = true
-	_player.floor_snap_length = 0.35
-	_player.safe_margin = 0.001
+	_player.floor_constant_speed = true
+	_player.floor_max_angle = deg_to_rad(55)
+	_player.floor_block_on_wall = false
+	_player.floor_snap_length = 0.4
+	_player.safe_margin = 0.05
 	_on_player_moved()
 	_refresh_state()
 

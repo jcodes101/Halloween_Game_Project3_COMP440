@@ -50,7 +50,11 @@ func _ready() -> void:
 	_camera.fov = 78
 	add_child(_camera)
 	_last_position = global_position
-	floor_snap_length = 0.35
+	floor_constant_speed = true
+	floor_max_angle = deg_to_rad(55)
+	floor_snap_length = 0.4
+	floor_block_on_wall = false
+	safe_margin = 0.05
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _process(delta: float) -> void:
@@ -92,13 +96,16 @@ func _physics_process(delta: float) -> void:
 	var movement_speed := RUN_SPEED if is_running else WALK_SPEED
 	velocity.x = direction.x * movement_speed
 	velocity.z = direction.z * movement_speed
-	if _jump_requested and is_on_floor():
+	if _jump_requested and (is_on_floor() or is_on_wall()):
 		velocity.y = 7.5
 		jump_count += 1
+		floor_snap_length = 0.0
 	elif not is_on_floor():
 		velocity.y -= GRAVITY * delta
+		floor_snap_length = 0.0
 	else:
-		velocity.y = -0.5
+		velocity.y = 0.0
+		floor_snap_length = 0.4
 	_jump_requested = false
 	move_and_slide()
 	if global_position.distance_to(_last_position) > 0.018:

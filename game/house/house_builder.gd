@@ -324,11 +324,12 @@ func _stair(bottom: Vector3, top: Vector3, width: float) -> void:
 	var collision := CollisionShape3D.new()
 	var shape := ConvexPolygonShape3D.new()
 	var points := PackedVector3Array()
+	var z_dir := -1.0 if top.z < bottom.z else 1.0
 	for x in [-width/2,width/2]:
-		points.append(Vector3(bottom.x+x,bottom.y-0.2,bottom.z))
-		points.append(Vector3(bottom.x+x,bottom.y,bottom.z))
-		points.append(Vector3(top.x+x,bottom.y-0.2,top.z))
-		points.append(Vector3(top.x+x,top.y,top.z))
+		points.append(Vector3(bottom.x+x,bottom.y-0.2,bottom.z-z_dir*0.35))
+		points.append(Vector3(bottom.x+x,bottom.y,bottom.z-z_dir*0.35))
+		points.append(Vector3(top.x+x,bottom.y-0.2,top.z+z_dir*0.35))
+		points.append(Vector3(top.x+x,top.y,top.z+z_dir*0.35))
 	shape.points = points
 	collision.shape = shape
 	body.add_child(collision)
