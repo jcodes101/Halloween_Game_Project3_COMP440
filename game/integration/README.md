@@ -2,12 +2,15 @@
 
 `game/main.tscn` is the project's F5 scene. `main_game.gd` wires the existing
 Escape/Environment, Familiar, Monster, player and approved sound systems together.
+The active environment is now the furnished multi-floor house; see
+`game/house/README.md` for its crowbar, bedroom key, attic ladder and landing route.
 The implementation is published on `main`, with its integration checkpoint also
 retained on `game-integration`.
 
 ## What is connected
 
-- The existing compact house and key/basement exit objective remain Environment-owned.
+- House items, locks, crowbar/hatch progression, window jump and landing remain
+  Environment-owned. The old compact key/basement exit is retained only as a test fixture.
 - Familiar routines and greetings use the existing FamiliarController from
   `origin/Familiar_System` commit ca70b8d.
 - One physical mother body and one visible rig are shared. Routine scheduling
@@ -44,7 +47,8 @@ speeds and hiding transitions are retained rather than replacing its controller.
 
 ## Verification
 
-Run Godot with `--path . -- --verify-game` to exercise the combined main scene;
+Run Godot with `--path . -- --verify-house` to exercise the active house scene;
+use `--path . tests/integration/legacy_main.tscn -- --verify-game` for the earlier compact fixture;
 add `--headless` for physics checks without rendering. The suite checks movement,
 one shared rig, routine/threat handoffs, locked feedback, key pickup, continuous
 interception, door gating, reveal timing, hiding, three-second loss and movement
@@ -53,6 +57,7 @@ Tests use actor-position fixtures to isolate situations; they are not a claim of
 a human completing a continuous playthrough. Rendered checks save
 `design/monster_behavior/combined_game.png`.
 
-The current compact blockout and basement exit remain provisional. The later
-two-floor house, attic escape and clue system are not supplied by this integration.
+The old compact blockout remains as a regression fixture at
+`tests/integration/legacy_main.tscn`. The house now supplies the two main floors,
+basement, attic escape and evening exterior. The separate clue system remains absent.
 Web exports in `docs/` are existing snapshots and have not been rebuilt here.

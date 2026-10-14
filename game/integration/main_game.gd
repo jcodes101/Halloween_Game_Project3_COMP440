@@ -18,81 +18,20 @@ var debug_label: Label
 var shadow: MeshInstance3D
 var capture_camera: Camera3D
 var capture_started := false
+@export var environment_scene: PackedScene = preload("res://game/environment/escape_environment.tscn")
+var house_mode := false
 
 func _ready() -> void:
-	environment = preload("res://game/environment/escape_environment.tscn").instantiate()
+	environment = environment_scene.instantiate()
 	environment.interception_gate = self
 	add_child(environment)
 	player = environment._player
 	player.collision_layer = 2
 	player.collision_mask = 13
-	# A physical side passage lets her reach the closed basement from the house.
-	var partition := environment.get_node("LivingPartitionEast") as MeshInstance3D
-	partition.position.x = 4.25
-	(partition.mesh as BoxMesh).size.x = 4.5
-	(partition.get_node("CollisionBody").get_child(0).shape as BoxShape3D).size.x = 4.5
-	# The raised mattress also blocks sight while the player crawls underneath.
-	var mattress := environment.get_node("BedMattress") as MeshInstance3D
-	var bed_body := StaticBody3D.new()
-	var bed_shape := CollisionShape3D.new()
-	var bed_box := BoxShape3D.new()
-	bed_box.size = Vector3(3, 0.2, 2.2)
-	bed_shape.shape = bed_box
-	bed_body.add_child(bed_shape)
-	mattress.add_child(bed_body)
-	var slab: MeshInstance3D = environment._basement_door_mesh.get_meta("slab")
-	(slab.get_node("CollisionBody") as StaticBody3D).collision_layer = 8
-	region = NavigationRegion3D.new()
-	region.navigation_mesh = NavigationMesh.new()
-	region.navigation_mesh.agent_height = 1.75
-	region.navigation_mesh.agent_radius = 0.5
-	region.navigation_mesh.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
-	region.navigation_mesh.geometry_collision_mask = 9
-	region.navigation_mesh.geometry_source_geometry_mode = NavigationMesh.SOURCE_GEOMETRY_GROUPS_WITH_CHILDREN
-	region.navigation_mesh.geometry_source_group_name = &"house_navigation"
-	environment.add_to_group("house_navigation")
-	add_child(region)
-	door_link = NavigationLink3D.new()
-	door_link.start_position = Vector3(0, 0.25, 1)
-	door_link.end_position = Vector3(0, 0.25, -1.3)
-	door_link.enabled = false
-	add_child(door_link)
-	observation = preload("res://game/integration/test_observation.gd").new()
-	add_child(observation)
-	audio = MonsterLabAudio.new()
-	add_child(audio)
-	monster = preload("res://systems/monster/Monster.tscn").instantiate()
-	monster.position = Vector3(2, 0.05, 3)
-	monster.observation_provider = self
-	monster.player_actor = player
-	monster.interception_anchor = _marker(Vector3(0, 0.05, -1.6))
-	monster.retreat_anchor = _marker(Vector3(2, 0.05, 3))
-	add_child(monster)
-	monster.set_physics_process(false)
-	familiar = preload("res://game/integration/routine_bridge.gd").new()
-	familiar.actor = monster
-	familiar.collision_layer = 0
-	familiar.collision_mask = 0
-	familiar.player_target = player
-	visual_adapter = preload("res://game/integration/shared_mother_adapter.gd").new()
-	visual_adapter.actor = monster
-	familiar.visual_adapter = visual_adapter
-	familiar.add_child(visual_adapter)
-	for point in [Vector3(-1, 0.05, 8), Vector3(2, 0.05, 8), Vector3(2, 0.05, 3), Vector3(-1, 0.05, 3)]:
-		familiar.routine_stations.append(_marker(point))
-	monster.add_child(familiar)
-	familiar.set_physics_process(false)
-	observation.suspicion_changed.connect(familiar.set_suspicion_level)
-	familiar.cue_emitted.connect(_caption)
-	monster.cue_requested.connect(_caption)
-	monster.capture_requested.connect(_capture)
-	monster.interception_ready.connect(_arrived)
-	monster.hiding_place_checked.connect(_check_hide)
-	environment.interaction_feedback.connect(audio.effect)
-	environment.basement_reveal_requested.connect(func() -> void: door_link.enabled = true; shadow.visible = false)
-	environment.escape_completed.connect(_stop_actors)
-	environment.hiding_attempted.connect(func(_point: Vector3) -> void: _witnessed_hide = monster.can_see_player(read_monster_observation()))
-	player.hiding_transition_finished.connect(_hide_finished)
+	house_mode = environment.has_method("climb_ladder")
+	_configure_navigation()
+	_build_actors()
+	_connect_game()
 	_build_hud()
 	await get_tree().physics_frame
 	region.bake_navigation_mesh(false)
@@ -108,6 +47,114 @@ func _ready() -> void:
 		suite.name = "GameVerification"
 		get_tree().root.add_child(suite)
 		await suite.run(self)
+	if "--verify-house" in OS.get_cmdline_user_args() and not get_tree().root.has_node("HouseVerification"):
+		var suite := preload("res://tests/house/verify_house.gd").new()
+		suite.name = "HouseVerification"
+		get_tree().root.add_child(suite)
+		await suite.run(self)
+
+func _configure_navigation() -> void:
+	# A physical side passage lets her reach the closed basement from the house.
+	if not house_mode:
+		var partition := environment.get_node("LivingPartitionEast") as MeshInstance3D
+		partition.position.x = 4.25
+		(partition.mesh as BoxMesh).size.x = 4.5
+		(partition.get_node("CollisionBody").get_child(0).shape as BoxShape3D).size.x = 4.5
+		var mattress := environment.get_node("BedMattress") as MeshInstance3D
+		var bed_body := StaticBody3D.new()
+		var bed_shape := CollisionShape3D.new()
+		var bed_box := BoxShape3D.new()
+		bed_box.size = Vector3(3, 0.2, 2.2)
+		bed_shape.shape = bed_box
+		bed_body.add_child(bed_shape)
+		mattress.add_child(bed_body)
+		var slab: MeshInstance3D = environment._basement_door_mesh.get_meta("slab")
+		(slab.get_node("CollisionBody") as StaticBody3D).collision_layer = 8
+	region = NavigationRegion3D.new()
+	region.navigation_mesh = NavigationMesh.new()
+	region.navigation_mesh.agent_height = 1.75
+	region.navigation_mesh.agent_radius = 0.5
+	if house_mode:
+		# Resolve the actual narrow door openings with the mother's capsule size.
+		NavigationServer3D.map_set_cell_size(get_world_3d().navigation_map,0.125)
+		NavigationServer3D.map_set_cell_height(get_world_3d().navigation_map,0.125)
+		region.navigation_mesh.cell_size = 0.125
+		region.navigation_mesh.cell_height = 0.125
+		region.navigation_mesh.agent_radius = 0.375
+		region.navigation_mesh.filter_baking_aabb = AABB(Vector3(-13,-4.2,-14),Vector3(26,18,30))
+	region.navigation_mesh.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
+	region.navigation_mesh.geometry_collision_mask = 9
+	region.navigation_mesh.geometry_source_geometry_mode = NavigationMesh.SOURCE_GEOMETRY_GROUPS_WITH_CHILDREN
+	region.navigation_mesh.geometry_source_group_name = &"house_navigation"
+	environment.add_to_group("house_navigation")
+	add_child(region)
+	door_link = NavigationLink3D.new()
+	door_link.start_position = Vector3(0,-3.35,10.9) if house_mode else Vector3(0, 0.25, 1)
+	door_link.end_position = Vector3(0,-3.35,13.0) if house_mode else Vector3(0, 0.25, -1.3)
+	door_link.enabled = false
+	add_child(door_link)
+	if house_mode:
+		for route in [[Vector3(-7,0.25,1.8),Vector3(-7,-3.35,-6.8)],[Vector3(4.5,0.25,10.7),Vector3(4.5,3.85,2.4)]]:
+			var stair_link := NavigationLink3D.new()
+			stair_link.start_position = route[0]
+			stair_link.end_position = route[1]
+			add_child(stair_link)
+		for id in environment.builder.doors:
+			if id in ["false_exit","front_door"]: continue
+			var info: Dictionary = environment.builder.doors[id]
+			var link := NavigationLink3D.new()
+			var direction := Vector3(0,0,1.3).rotated(Vector3.UP,info.yaw)
+			link.start_position = info.position-Vector3.UP*0.75-direction
+			link.end_position = info.position-Vector3.UP*0.75+direction
+			link.enabled = info.open
+			add_child(link)
+			info.link = link
+
+func _build_actors() -> void:
+	observation = preload("res://game/integration/test_observation.gd").new()
+	add_child(observation)
+	audio = MonsterLabAudio.new()
+	add_child(audio)
+	monster = preload("res://systems/monster/Monster.tscn").instantiate()
+	monster.position = Vector3(2,0.05,9) if house_mode else Vector3(2, 0.05, 3)
+	monster.observation_provider = self
+	monster.player_actor = player
+	monster.interception_anchor = _marker(Vector3(0,-3.55,13.2) if house_mode else Vector3(0, 0.05, -1.6))
+	if house_mode: monster.interception_anchor.rotation.y = PI
+	monster.retreat_anchor = _marker(monster.position)
+	add_child(monster)
+	if house_mode:
+		monster.floor_block_on_wall = true
+		monster.floor_snap_length = 0.35
+		monster.safe_margin = 0.001
+	monster.set_physics_process(false)
+	familiar = preload("res://game/integration/routine_bridge.gd").new()
+	familiar.actor = monster
+	familiar.collision_layer = 0
+	familiar.collision_mask = 0
+	familiar.player_target = player
+	visual_adapter = preload("res://game/integration/shared_mother_adapter.gd").new()
+	visual_adapter.actor = monster
+	familiar.visual_adapter = visual_adapter
+	familiar.add_child(visual_adapter)
+	var points: Array = environment.builder.room_points.values() if house_mode else [Vector3(-1, 0.05, 8), Vector3(2, 0.05, 8), Vector3(2, 0.05, 3), Vector3(-1, 0.05, 3)]
+	for point in points:
+		familiar.routine_stations.append(_marker(point))
+	monster.add_child(familiar)
+	familiar.set_physics_process(false)
+
+func _connect_game() -> void:
+	observation.suspicion_changed.connect(familiar.set_suspicion_level)
+	familiar.cue_emitted.connect(_caption)
+	monster.cue_requested.connect(_caption)
+	monster.capture_requested.connect(_capture)
+	monster.interception_ready.connect(_arrived)
+	monster.hiding_place_checked.connect(_check_hide)
+	environment.interaction_feedback.connect(audio.effect)
+	environment.basement_reveal_requested.connect(func() -> void: door_link.enabled = true; shadow.visible = false)
+	environment.escape_completed.connect(_stop_actors)
+	environment.hiding_attempted.connect(func(_point: Vector3) -> void: _witnessed_hide = monster.can_see_player(read_monster_observation()))
+	player.hiding_transition_finished.connect(_hide_finished)
 
 func _marker(point: Vector3) -> Marker3D:
 	var marker := Marker3D.new()
@@ -119,7 +166,7 @@ func _build_hud() -> void:
 	var canvas := CanvasLayer.new()
 	add_child(canvas)
 	caption = Label.new()
-	caption.position = Vector2(18, 640)
+	caption.position = Vector2(18, 680)
 	caption.add_theme_font_size_override("font_size", 18)
 	canvas.add_child(caption)
 	debug_label = Label.new()
@@ -132,7 +179,7 @@ func _build_hud() -> void:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = Color(0.03, 0.03, 0.03)
 	shadow.material_override = material
-	shadow.position = Vector3(0, 0.01, 0.35)
+	shadow.position = Vector3(0,-3.59,11.4) if house_mode else Vector3(0, 0.01, 0.35)
 	shadow.visible = false
 	add_child(shadow)
 	capture_camera = Camera3D.new()
@@ -214,6 +261,8 @@ func _stop_actors() -> void:
 		familiar.hand_off_to_monster()
 	familiar.set_physics_process(false)
 	monster._set_visual_motion(false)
+	if not capture_started:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 func _capture(_actor: Node3D) -> void:
 	if capture_started:
@@ -231,6 +280,7 @@ func _capture(_actor: Node3D) -> void:
 	_caption("She was never your mother.")
 	await get_tree().create_timer(1.0).timeout
 	environment.mark_player_captured()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and not capture_started:

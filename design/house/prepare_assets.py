@@ -4,8 +4,8 @@ import shutil, json
 
 root = Path('assets/vendor/kenney')
 choices = {
- 'building': ['floor','wall','wall-half','wall-doorway-square','wall-window-square','wall-window-wide-square','door-rotate-square-a','stairs-closed','roof-flat-square','column','border','detail-pipe','barricade-doorway-a'],
- 'furniture': ['loungeSofa','loungeChair','tableCoffee','televisionVintage','cabinetTelevision','rugRectangle','bookcaseOpen','books','pottedPlant','lampRoundFloor','lampRoundTable','lampWall','sideTable','kitchenCabinet','kitchenCabinetUpper','kitchenSink','kitchenStove','kitchenFridge','hoodLarge','table','chair','bedDouble','bedSingle','cabinetBed','desk','chairDesk','bathroomSink','bathtub','toilet','bathroomMirror','washer','dryer','cardboardBoxClosed','coatRackStanding','ceilingFan','doorway','doorwayOpen']
+ 'building': ['floor','wall','wall-half','wall-doorway-square','wall-window-square','wall-window-wide-square','door-rotate-square-a','stairs-closed','roof-flat-square','roof-flat-center','column','border','detail-pipe','barricade-doorway-a'],
+ 'furniture': ['wallWindow','loungeSofa','loungeChair','tableCoffee','televisionVintage','cabinetTelevision','rugRectangle','bookcaseOpen','books','pottedPlant','lampRoundFloor','lampRoundTable','lampWall','sideTable','kitchenCabinet','kitchenCabinetUpper','kitchenSink','kitchenStove','kitchenFridge','hoodLarge','table','chair','bedDouble','bedSingle','cabinetBed','desk','chairDesk','bathroomSink','bathtub','toilet','bathroomMirror','washer','dryer','cardboardBoxClosed','coatRackStanding','ceilingFan','doorway','doorwayOpen']
 }
 manifest = []
 for kit, names in choices.items():

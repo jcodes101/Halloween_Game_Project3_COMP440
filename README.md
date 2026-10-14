@@ -1,9 +1,10 @@
 # The Familiar
 
 A first-person horror game project made with Godot. The current **main** branch
-launches one combined scene with the house, first-person player, Familiar routines,
-Monster threats, hiding, escape, capture and approved audio. Find the basement key,
-survive the mother's interception, and reach the prototype exit.
+launches one combined scene with a furnished two-floor house, basement, attic,
+evening neighborhood, first-person player, Familiar routines, Monster threats,
+hiding, escape, capture and approved audio. Find the basement crowbar and Mother's
+window key, open the boarded attic hatch, and jump out the unlocked attic window.
 Observation/Suspicion code has not been supplied yet: 1/2/3 temporarily simulate it.
 
 ## Install the requirements
@@ -63,22 +64,25 @@ See the [official project import instructions](https://docs.godotengine.org/en/4
 | Mouse | Look around |
 | Shift + movement | Run |
 | E | Pick up a key, interact with a door/exit, enter or leave a hiding place |
+| Space | Jump; jump through the unlocked attic window to escape |
 | Esc | Release or recapture the mouse |
 | R | Restart after escaping or being captured |
 | 1 / 2 / 3 | Temporary suspicion controls: unaware / doubtful / certain |
 | F8 in the editor | Stop the game |
 
-Find and collect the **basement key**, then unlock the **basement door**. Enter the
-basement and interact with its **exit** to complete this prototype. The mother
-physically moves behind the closed door before it opens, pauses for one second,
-then pursues. Capturing you starts a close-up and jump-scare sting before restart.
-Press 2 or 3 to test stalking or pursuit earlier. Follow the
-on-screen interaction prompts. Hiding spots include behind the sofa, under the
-bed, and among the crates. E leaves cover; moving also exits cover and resets
+Find the **crowbar in the basement**, reached through the kitchen stairs. The
+**false basement exit** triggers interception and never wins the game. Find the
+**attic window key in Mother's room** on the second floor. Use the crowbar at the
+boarded ceiling hatch in the upstairs hall, then E to climb the pull-down ladder.
+Unlock the attic window, **jump through with Space + forward**, and land outside
+to escape. Capturing you starts a close-up and jump-scare sting before restart.
+Press 2 or 3 to test stalking or pursuit earlier. Follow the on-screen prompts.
+Hiding spots include behind the sofa, under both beds, and in the upstairs closet.
+E leaves cover; moving also exits cover and resets
 the stillness timer. Hiding transitions temporarily lock movement.
 
-This is the current compact environment prototype, not the final two-floor house
-and attic-window escape. Break her sight before hiding and stay still for three
+The current house uses the downloaded building and furniture assets. Break her
+sight before hiding and stay still for three
 seconds. If she sees you enter, she remembers and checks that hiding place.
 
 ## Try the monster behavior separately
@@ -114,6 +118,7 @@ See the [detailed monster lab guide](design/monster_behavior/README.md).
 ## Project guides and credits
 
 - [Environment prototype](game/environment/README.md)
+- [House layout and escape route](game/house/README.md)
 - [Combined scene and system connections](game/integration/README.md)
 - [Monster integration notes](systems/monster/INTEGRATION.md)
 - [Audio sources and licenses](assets/audio/SOURCES.md)

@@ -45,6 +45,11 @@
     "license": "CC0"
   },
   {
+    "asset": "assets\\environment\\building\\roof-flat-center.glb",
+    "source": "assets\\vendor\\kenney\\building-kit\\Models\\GLB format\\roof-flat-center.glb",
+    "license": "CC0"
+  },
+  {
     "asset": "assets\\environment\\building\\column.glb",
     "source": "assets\\vendor\\kenney\\building-kit\\Models\\GLB format\\column.glb",
     "license": "CC0"
@@ -62,6 +67,11 @@
   {
     "asset": "assets\\environment\\building\\barricade-doorway-a.glb",
     "source": "assets\\vendor\\kenney\\building-kit\\Models\\GLB format\\barricade-doorway-a.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\wallWindow.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\wallWindow.glb",
     "license": "CC0"
   },
   {

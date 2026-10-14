@@ -10,7 +10,7 @@
 - Mostly narrow halls and dead ends.
 - Hiding opportunities in closets, under beds, and behind furniture.
 - Attic access through a pull-down ladder. The basement crowbar opens access to the attic.
-- A separate key found somewhere outside the basement unlocks the attic window; its exact location has not been selected.
+- The attic window key is in Mother's room, as confirmed in the subsequent house task.
 - The real escape is a player jump out of the attic window. A porch-roof escape was suggested but was not approved; do not substitute it for the jump.
 - Approved assets: free Kenney Building Kit and Furniture Kit.
 
@@ -20,7 +20,15 @@ The basement false exit draws the player downstairs, where the crowbar can be fo
 
 Reserve room for the mimic encounter and a reachable hiding opportunity near the basement route. Narrow halls and dead ends should still allow a player to evade the creature using the approved hiding spaces.
 
-## Decisions still needed before implementation
+## Subsequent confirmed gameplay decisions
+
+The user confirmed that the ceiling hatch is boarded shut, the crowbar is in the
+basement, the key is in Mother's room, and the exterior should be an evening
+neighborhood. E operates the pull-down ladder; Space jumps through the window.
+Escape includes a physical landing sequence. The reveal occurs at the false exit.
+The implemented house and current tests are documented in `game/house/README.md`.
+
+## Earlier open questions (superseded where confirmed above)
 
 - Exact room dimensions, extra rooms, doorway widths, and stair measurements.
 - Position and mechanism of the false basement exit.

@@ -30,6 +30,9 @@ var _base_camera_position := Vector3(0, STANDING_CAMERA_Y, 0)
 var _base_camera_roll := 0.0
 var _transition_start_position := Vector3.ZERO
 var _transition_start_yaw := 0.0
+@export var allow_jump := false
+var _jump_requested := false
+var jump_count := 0
 
 func _ready() -> void:
 	collision_layer = 1
@@ -47,6 +50,7 @@ func _ready() -> void:
 	_camera.fov = 78
 	add_child(_camera)
 	_last_position = global_position
+	floor_snap_length = 0.35
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func _process(delta: float) -> void:
@@ -67,6 +71,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				interact_requested.emit()
 		elif event.keycode == KEY_ESCAPE:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else Input.MOUSE_MODE_CAPTURED
+		elif event.keycode == KEY_SPACE and allow_jump and not _hidden:
+			_jump_requested = true
 
 func _physics_process(delta: float) -> void:
 	if _transitioning:
@@ -86,10 +92,14 @@ func _physics_process(delta: float) -> void:
 	var movement_speed := RUN_SPEED if is_running else WALK_SPEED
 	velocity.x = direction.x * movement_speed
 	velocity.z = direction.z * movement_speed
-	if not is_on_floor():
+	if _jump_requested and is_on_floor():
+		velocity.y = 7.5
+		jump_count += 1
+	elif not is_on_floor():
 		velocity.y -= GRAVITY * delta
 	else:
-		velocity.y = 0.0
+		velocity.y = -0.5
+	_jump_requested = false
 	move_and_slide()
 	if global_position.distance_to(_last_position) > 0.018:
 		_step_timer += delta
@@ -231,10 +241,13 @@ func cancel_hiding_transition() -> void:
 
 func _path_is_clear(start: Transform3D, points: Array[Vector3]) -> bool:
 	var probe := start
+	# Preflight slightly above floor contact; actual movement stays floor-level.
+	probe.origin.y += 0.01
 	for point in points:
-		var offset := point - probe.origin
+		var clear_point := point+Vector3.UP*0.01
+		var offset := clear_point - probe.origin
 		if offset.length() < 0.02:
-			probe.origin = point
+			probe.origin = clear_point
 			continue
 		var steps := maxi(1, ceili(offset.length() / 0.12))
 		var motion := offset / float(steps)
@@ -250,7 +263,7 @@ func _has_standing_clearance() -> bool:
 	standing_shape.height = STANDING_HEIGHT
 	var query := PhysicsShapeQueryParameters3D.new()
 	query.shape = standing_shape
-	query.transform = Transform3D(Basis.IDENTITY, global_position + Vector3(0, STANDING_HEIGHT * 0.5, 0))
+	query.transform = Transform3D(Basis.IDENTITY, global_position + Vector3(0, STANDING_HEIGHT * 0.5 + 0.02, 0))
 	query.collision_mask = collision_mask
 	query.exclude = [get_rid()]
 	query.margin = 0.0
