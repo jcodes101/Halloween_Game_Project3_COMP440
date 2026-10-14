@@ -1,0 +1,252 @@
+[
+  {
+    "asset": "assets\\environment\\building\\floor.glb",
+    "source": "assets\\vendor\\kenney\\building-kit\\Models\\GLB format\\floor.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\building\\wall.glb",
+    "source": "assets\\vendor\\kenney\\building-kit\\Models\\GLB format\\wall.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\building\\wall-half.glb",
+    "source": "assets\\vendor\\kenney\\building-kit\\Models\\GLB format\\wall-half.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\building\\wall-doorway-square.glb",
+    "source": "assets\\vendor\\kenney\\building-kit\\Models\\GLB format\\wall-doorway-square.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\building\\wall-window-square.glb",
+    "source": "assets\\vendor\\kenney\\building-kit\\Models\\GLB format\\wall-window-square.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\building\\wall-window-wide-square.glb",
+    "source": "assets\\vendor\\kenney\\building-kit\\Models\\GLB format\\wall-window-wide-square.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\building\\door-rotate-square-a.glb",
+    "source": "assets\\vendor\\kenney\\building-kit\\Models\\GLB format\\door-rotate-square-a.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\building\\stairs-closed.glb",
+    "source": "assets\\vendor\\kenney\\building-kit\\Models\\GLB format\\stairs-closed.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\building\\roof-flat-square.glb",
+    "source": "assets\\vendor\\kenney\\building-kit\\Models\\GLB format\\roof-flat-square.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\building\\column.glb",
+    "source": "assets\\vendor\\kenney\\building-kit\\Models\\GLB format\\column.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\building\\border.glb",
+    "source": "assets\\vendor\\kenney\\building-kit\\Models\\GLB format\\border.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\building\\detail-pipe.glb",
+    "source": "assets\\vendor\\kenney\\building-kit\\Models\\GLB format\\detail-pipe.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\building\\barricade-doorway-a.glb",
+    "source": "assets\\vendor\\kenney\\building-kit\\Models\\GLB format\\barricade-doorway-a.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\loungeSofa.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\loungeSofa.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\loungeChair.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\loungeChair.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\tableCoffee.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\tableCoffee.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\televisionVintage.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\televisionVintage.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\cabinetTelevision.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\cabinetTelevision.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\rugRectangle.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\rugRectangle.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\bookcaseOpen.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\bookcaseOpen.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\books.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\books.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\pottedPlant.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\pottedPlant.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\lampRoundFloor.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\lampRoundFloor.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\lampRoundTable.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\lampRoundTable.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\lampWall.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\lampWall.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\sideTable.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\sideTable.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\kitchenCabinet.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\kitchenCabinet.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\kitchenCabinetUpper.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\kitchenCabinetUpper.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\kitchenSink.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\kitchenSink.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\kitchenStove.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\kitchenStove.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\kitchenFridge.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\kitchenFridge.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\hoodLarge.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\hoodLarge.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\table.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\table.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\chair.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\chair.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\bedDouble.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\bedDouble.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\bedSingle.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\bedSingle.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\cabinetBed.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\cabinetBed.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\desk.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\desk.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\chairDesk.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\chairDesk.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\bathroomSink.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\bathroomSink.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\bathtub.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\bathtub.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\toilet.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\toilet.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\bathroomMirror.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\bathroomMirror.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\washer.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\washer.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\dryer.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\dryer.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\cardboardBoxClosed.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\cardboardBoxClosed.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\coatRackStanding.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\coatRackStanding.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\ceilingFan.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\ceilingFan.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\doorway.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\doorway.glb",
+    "license": "CC0"
+  },
+  {
+    "asset": "assets\\environment\\furniture\\doorwayOpen.glb",
+    "source": "assets\\vendor\\kenney\\furniture-kit\\Models\\GLTF format\\doorwayOpen.glb",
+    "license": "CC0"
+  }
+]
