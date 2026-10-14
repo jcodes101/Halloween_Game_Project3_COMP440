@@ -1,9 +1,10 @@
 # The Familiar
 
 A first-person horror game project made with Godot. The current **main** branch
-launches a playable house environment prototype: find the basement key, unlock
-the basement door, and reach the exit. Monster behavior is available in a separate
-test scene and has not yet been connected to the house.
+launches one combined scene with the house, first-person player, Familiar routines,
+Monster threats, hiding, escape, capture and approved audio. Find the basement key,
+survive the mother's interception, and reach the prototype exit.
+Observation/Suspicion code has not been supplied yet: 1/2/3 temporarily simulate it.
 
 ## Install the requirements
 
@@ -64,22 +65,26 @@ See the [official project import instructions](https://docs.godotengine.org/en/4
 | E | Pick up a key, interact with a door/exit, enter or leave a hiding place |
 | Esc | Release or recapture the mouse |
 | R | Restart after escaping or being captured |
+| 1 / 2 / 3 | Temporary suspicion controls: unaware / doubtful / certain |
 | F8 in the editor | Stop the game |
 
 Find and collect the **basement key**, then unlock the **basement door**. Enter the
-basement and interact with its **exit** to complete this prototype. Follow the
+basement and interact with its **exit** to complete this prototype. The mother
+physically moves behind the closed door before it opens, pauses for one second,
+then pursues. Capturing you starts a close-up and jump-scare sting before restart.
+Press 2 or 3 to test stalking or pursuit earlier. Follow the
 on-screen interaction prompts. Hiding spots include behind the sofa, under the
 bed, and among the crates. E leaves cover; moving also exits cover and resets
 the stillness timer. Hiding transitions temporarily lock movement.
 
 This is the current compact environment prototype, not the final two-floor house
-and attic-window escape. The house does not currently run the monster's pursuit
-or capture behavior.
+and attic-window escape. Break her sight before hiding and stay still for three
+seconds. If she sees you enter, she remembers and checks that hiding place.
 
 ## Try the monster behavior separately
 
 In Godot's FileSystem panel, open **`tests/monster/behavior_lab.tscn`** and press
-**F6 (Run Current Scene)**. F5 continues to launch the house on main.
+**F6 (Run Current Scene)**. F5 launches the combined game at `game/main.tscn`.
 
 The lab uses WASD, mouse look, Shift, and E. Press **1** for the disguised mother,
 **2** for stalking, **3** for pursuit, and **R** to restart. Its camera has a lower
@@ -95,7 +100,7 @@ See the [detailed monster lab guide](design/monster_behavior/README.md).
 ## Troubleshooting
 
 - **`git` is not recognized:** install Git and reopen your terminal.
-- **F5 opens the monster lab or model preview:** verify that you are on `main`
+- **F5 opens an older separate scene:** verify that you are on the latest game branch
   with `git branch --show-current`, then use the update commands above.
 - **Nothing appears in the editor viewport:** the environment is built when it
   runs. Press F5; the monster lab is also generated when run with F6.
@@ -109,6 +114,7 @@ See the [detailed monster lab guide](design/monster_behavior/README.md).
 ## Project guides and credits
 
 - [Environment prototype](game/environment/README.md)
+- [Combined scene and system connections](game/integration/README.md)
 - [Monster integration notes](systems/monster/INTEGRATION.md)
 - [Audio sources and licenses](assets/audio/SOURCES.md)
 - [Monster model attribution](assets/monster/everyday-jane/ATTRIBUTION.md)

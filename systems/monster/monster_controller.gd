@@ -81,6 +81,8 @@ func can_see_player(observation: MonsterObservation) -> bool:
 		return false
 	var eye := global_position + Vector3.UP * 1.45
 	var aim := observation.player_location + Vector3.UP * 1.55
+	if player_actor.has_method("monster_sight_position"):
+		aim = player_actor.monster_sight_position()
 	var direction := aim - eye
 	if direction.length() > tuning.sight_range:
 		return false

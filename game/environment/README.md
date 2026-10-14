@@ -1,5 +1,9 @@
 # Escape / Environment prototype
 
+The combined F5 entry point is now `game/main.tscn`. This module can still be run
+standalone with F6. See `game/integration/README.md` for the connected monster,
+Familiar, audio, gate and visibility interfaces.
+
 The active prototype scene is `escape_environment.tscn`. It implements the GDD's compact-house objective: collect the basement key, unlock the basement door, and reach the exit. The generated blockout deliberately stays independent of the later multi-floor house proposal in `handoff/HOUSE_REQUIREMENTS.md`.
 
 ## Controls
@@ -27,4 +31,6 @@ Hiding uses a reusable per-spot configuration with an entry point, waypoint path
 
 Walking and running use a speed responsive, procedural camera bob with a small vertical offset and roll. The effect smoothly fades when movement stops and stays disabled during hiding and transitions. The project is first person and has no visible player body or animation rig, so hiding is conveyed through the camera's crouch, crawl movement, orientation, and the configured positions.
 
-Movement exits cover and resets the stillness timer. The current prototype has no monster implementation, so the concealment seam is exposed and stateful, but no pursuit/search behavior consumes it yet.
+Movement exits cover and resets the stillness timer. The combined scene consumes
+the hiding seam in Monster pursuit/search. `is_player_motionless()` provides raw
+stillness for the monster's timer; `player_is_still` retains this module's indicator.

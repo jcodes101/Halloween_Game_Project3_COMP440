@@ -7,6 +7,10 @@ signal environment_state_changed
 signal basement_reveal_requested
 signal escape_completed
 signal player_captured
+signal interaction_feedback(kind: String, at: Vector3)
+signal hiding_attempted(check_position: Vector3)
+@export var interception_gate: Node
+var active_hide_check_position := Vector3.ZERO
 
 enum EscapeProgress { FIND_KEY, BASEMENT_READY, BASEMENT_ENTERED, ESCAPED, CAPTURED }
 
@@ -46,7 +50,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	if is_hidden and escape_progress != EscapeProgress.ESCAPED and escape_progress != EscapeProgress.CAPTURED:
-		if _player.call("is_moving"):
+		if not is_player_motionless():
 			_stillness_time = 0.0
 			_set_still(false)
 		else:
@@ -253,27 +257,20 @@ func _try_interact() -> void:
 			has_basement_key = true
 			_key_mesh.visible = false
 			escape_progress = EscapeProgress.BASEMENT_READY
+			interaction_feedback.emit("item_pickup", _key_mesh.global_position)
 			_show_message("Basement key collected. The stairs lead down.")
 		"basement_door":
 			if door_state["basement_door"] == "open":
 				return
 			if not has_basement_key:
 				_show_message("Locked. Find the basement key.")
+				interaction_feedback.emit("locked_door", Vector3(0, 1, -0.1))
 				return
-			door_state["basement_door"] = "open"
-			var slab: MeshInstance3D = _basement_door_mesh.get_meta("slab")
-			slab.visible = false
-			# Remove the panel's physics body as well as hiding its mesh. This makes
-			# opening the route independent of deferred shape-disable timing.
-			var door_body := slab.get_node("CollisionBody") as StaticBody3D
-			door_body.collision_layer = 0
-			door_body.collision_mask = 0
-			door_body.queue_free()
-			escape_progress = EscapeProgress.BASEMENT_ENTERED
-			basement_reveal_requested.emit()
-			_show_message("The basement door opens. Something moves below.")
+			open_basement_route()
 		"hide":
 			var hide_config: Dictionary = target.hide_config
+			active_hide_check_position = Vector3(hide_config.entry)
+			hiding_attempted.emit(active_hide_check_position)
 			_player.call("begin_hiding", hide_config)
 		"exit":
 			if escape_progress != EscapeProgress.BASEMENT_ENTERED:
@@ -282,6 +279,28 @@ func _try_interact() -> void:
 			_complete_escape()
 	_refresh_state()
 	environment_state_changed.emit()
+
+func open_basement_route() -> void:
+	if not has_basement_key or door_state["basement_door"] == "open":
+		return
+	if interception_gate != null and not interception_gate.request_door_open():
+		_show_message("[Footsteps approaching beyond the door] The latch is shifting.")
+		return
+	door_state["basement_door"] = "open"
+	var slab: MeshInstance3D = _basement_door_mesh.get_meta("slab")
+	slab.visible = false
+	var door_body := slab.get_node("CollisionBody") as StaticBody3D
+	door_body.collision_layer = 0
+	door_body.collision_mask = 0
+	door_body.queue_free()
+	escape_progress = EscapeProgress.BASEMENT_ENTERED
+	interaction_feedback.emit("door_open", Vector3(0, 1, -0.1))
+	basement_reveal_requested.emit()
+	_refresh_state()
+	environment_state_changed.emit()
+
+func is_player_motionless() -> bool:
+	return _player.is_still()
 
 func _nearest_interactable() -> Dictionary:
 	var best: Dictionary = {}

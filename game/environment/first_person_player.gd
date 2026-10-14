@@ -10,7 +10,7 @@ const RUN_SPEED := 5.8
 const MOUSE_SENSITIVITY := 0.0022
 const GRAVITY := 18.0
 const STANDING_HEIGHT := 1.8
-const STANDING_CAMERA_Y := 1.55
+const STANDING_CAMERA_Y := 1.05
 const CAMERA_BOB_WALK := 0.012
 const CAMERA_BOB_RUN := 0.021
 const CAMERA_ROLL_MAX := 0.006
@@ -101,6 +101,12 @@ func _physics_process(delta: float) -> void:
 
 func is_moving() -> bool:
 	return Vector2(get_real_velocity().x, get_real_velocity().z).length() > 0.15
+
+func is_still() -> bool:
+	return not _transitioning and not is_moving() and not (Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_D) or Input.is_action_pressed("ui_up") or Input.is_action_pressed("ui_down") or Input.is_action_pressed("ui_left") or Input.is_action_pressed("ui_right"))
+
+func monster_sight_position() -> Vector3:
+	return _camera.global_position
 
 func is_transitioning() -> bool:
 	return _transitioning
