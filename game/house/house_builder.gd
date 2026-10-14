@@ -451,9 +451,8 @@ func _furnish() -> void:
 	# Ceiling fans in living room and dining room.
 	_prop("ceilingFan",Vector3(-6,3.3,5),Vector3(1.8,0.35,1.8),0,false)
 	_prop("ceilingFan",Vector3(6,3.3,-3),Vector3(1.8,0.35,1.8),0,false)
-	# Floor lamps in living room and foyer.
+	# Floor lamp in living room.
 	_prop("lampRoundFloor",Vector3(-10,0,3.5),Vector3(0.6,2.0,0.6))
-	_prop("lampRoundFloor",Vector3(2.5,0,10.5),Vector3(0.6,2.0,0.6))
 	# Side tables next to seating and beds.
 	_prop("sideTable",Vector3(-1.8,0,5.5),Vector3(0.8,0.7,0.8))
 	_prop("sideTable",Vector3(-4.0,3.6,-5.5),Vector3(0.8,0.7,0.8))
