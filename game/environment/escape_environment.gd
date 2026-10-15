@@ -9,6 +9,7 @@ signal escape_completed
 signal player_captured
 signal interaction_feedback(kind: String, at: Vector3)
 signal hiding_attempted(check_position: Vector3)
+signal hud_notification(text: String)
 @export var interception_gate: Node
 var active_hide_check_position := Vector3.ZERO
 
@@ -17,6 +18,9 @@ enum EscapeProgress { FIND_KEY, BASEMENT_READY, BASEMENT_ENTERED, ESCAPED, CAPTU
 const STILLNESS_TO_LOSE_TARGET := 3.0
 const INTERACTION_RANGE := 2.6
 const PLAYER_SCENE := preload("res://game/environment/first_person_player.tscn")
+@export_group("Prototype Night Lighting")
+@export_range(0.05, 0.35, 0.01) var ambient_energy := 0.22
+@export_range(0.05, 0.4, 0.01) var key_light_energy := 0.24
 
 var door_state: Dictionary = {"basement_door": "locked"}
 var player_location: String = "living_room"
@@ -64,14 +68,14 @@ func _build_world() -> void:
 	environment.background_mode = Environment.BG_COLOR
 	environment.background_color = Color("11171a")
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("b9c2c5")
-	environment.ambient_light_energy = 0.48
+	environment.ambient_light_color = Color("707b86")
+	environment.ambient_light_energy = ambient_energy
 	world_environment.environment = environment
 	add_child(world_environment)
 
 	var key_light := DirectionalLight3D.new()
 	key_light.rotation_degrees = Vector3(-52, -28, 0)
-	key_light.light_energy = 0.8
+	key_light.light_energy = key_light_energy
 	add_child(key_light)
 
 	# Ground floor and basement blockout. The open central passage is the stair route.
@@ -139,32 +143,37 @@ func _build_world() -> void:
 	_add_box("ExitGlow", Vector3(0, 1.3, -9.65), Vector3(2.2, 2.4, 0.15), Color("627262"), false)
 
 func _build_interface() -> void:
-	var layer := CanvasLayer.new()
-	add_child(layer)
+	# Legacy state labels remain as data holders for existing scripts and tests.
+	# The single visible HUD is owned by game/ui/game_ui.gd.
+	var legacy_state_layer := CanvasLayer.new()
+	legacy_state_layer.name = "LegacyHudStateLayer"
+	legacy_state_layer.visible = false
+	add_child(legacy_state_layer)
 	_status = Label.new()
 	_status.position = Vector2(18, 18)
 	_status.add_theme_font_size_override("font_size", 18)
 	_status.add_theme_color_override("font_color", Color("f0e7d2"))
-	layer.add_child(_status)
+	legacy_state_layer.add_child(_status)
 	_prompt = Label.new()
 	_prompt.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
 	_prompt.position.y -= 70
 	_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_prompt.add_theme_font_size_override("font_size", 20)
 	_prompt.add_theme_color_override("font_color", Color("fff4d8"))
-	layer.add_child(_prompt)
+	legacy_state_layer.add_child(_prompt)
 	_hide_label = Label.new()
 	_hide_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	_hide_label.position = Vector2(-100, 45)
 	_hide_label.add_theme_font_size_override("font_size", 18)
 	_hide_label.add_theme_color_override("font_color", Color("d3d9cc"))
-	layer.add_child(_hide_label)
+	legacy_state_layer.add_child(_hide_label)
 	_overlay = ColorRect.new()
 	_overlay.color = Color(0.02, 0.025, 0.03, 0.82)
 	_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_overlay.visible = false
+	_overlay.color.a = 0.0 # Ending presentation is owned by the shared gameplay UI.
 	_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.add_child(_overlay)
+	legacy_state_layer.add_child(_overlay)
 	var ending := Label.new()
 	ending.name = "EndingText"
 	ending.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
@@ -174,6 +183,7 @@ func _build_interface() -> void:
 	ending.add_theme_font_size_override("font_size", 32)
 	ending.add_theme_color_override("font_color", Color("f3e8d5"))
 	ending.text = ""
+	ending.visible = false
 	_overlay.add_child(ending)
 	_message_timer = Timer.new()
 	_message_timer.one_shot = true
@@ -325,6 +335,21 @@ func _update_prompt() -> void:
 	var target := _nearest_interactable()
 	_prompt.text = str(target.prompt) if not target.is_empty() else "WASD move   Mouse look   E interact"
 
+func current_interaction_prompt() -> String:
+	if is_hidden:
+		return "[E] Leave hiding place"
+	var target := _nearest_interactable()
+	if target.is_empty():
+		return ""
+	var text := str(target.prompt).replace("E —", "[E]").replace("E  ", "[E] ")
+	return text
+
+func stillness_progress() -> float:
+	return clampf(_stillness_time / STILLNESS_TO_LOSE_TARGET, 0.0, 1.0)
+
+func objective_text() -> String:
+	return "Reach the basement exit" if escape_progress == EscapeProgress.BASEMENT_ENTERED else ("Unlock the basement door" if escape_progress == EscapeProgress.BASEMENT_READY else "Find the basement key")
+
 func _escape_from_hide() -> void:
 	if not is_hidden or _player.call("is_transitioning"):
 		return
@@ -388,6 +413,7 @@ func _show_message(text: String) -> void:
 	if _status == null:
 		return
 	_status.text = "THE FAMILIAR\n" + text
+	hud_notification.emit(text)
 	_message_timer.start(2.5)
 
 func _clear_message() -> void:
@@ -421,5 +447,5 @@ func mark_player_captured() -> void:
 	_refresh_state()
 
 func _unhandled_key_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R and escape_progress in [EscapeProgress.ESCAPED, EscapeProgress.CAPTURED]:
 		get_tree().reload_current_scene()

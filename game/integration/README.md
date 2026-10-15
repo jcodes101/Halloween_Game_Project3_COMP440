@@ -47,7 +47,7 @@ speeds and hiding transitions are retained rather than replacing its controller.
 
 ## Verification
 
-Run Godot with `--path . -- --verify-house` to exercise the active house scene;
+Run Godot with `--path . game/main.tscn -- --verify-house` to exercise the active house scene;
 use `--path . tests/integration/legacy_main.tscn -- --verify-game` for the earlier compact fixture;
 add `--headless` for physics checks without rendering. The suite checks movement,
 one shared rig, routine/threat handoffs, locked feedback, key pickup, continuous

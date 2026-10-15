@@ -7,27 +7,38 @@ signal hiding_transition_finished(entered: bool, succeeded: bool)
 
 const WALK_SPEED := 4.2
 const RUN_SPEED := 5.8
-const MOUSE_SENSITIVITY := 0.0022
+@export_range(0.0005, 0.01, 0.0001) var mouse_sensitivity := 0.0022
 const GRAVITY := 18.0
 const STANDING_HEIGHT := 1.8
 const STANDING_CAMERA_Y := 1.05
 const CAMERA_BOB_WALK := 0.012
 const CAMERA_BOB_RUN := 0.021
 const CAMERA_ROLL_MAX := 0.006
+@export_group("Camera Comfort")
+@export_range(0.0, 1.0, 0.05) var camera_motion_intensity := 1.0
+@export_range(4.0, 32.0, 1.0) var ground_acceleration := 18.0
+@export_range(4.0, 36.0, 1.0) var ground_deceleration := 24.0
 
 var _camera: Camera3D
+var flashlight: Node
 var _capsule_node: CollisionShape3D
 var _capsule_shape: CapsuleShape3D
 var _hidden := false
 var _transitioning := false
+var _qte_locked := false
 var _transition_tween: Tween
 var _hide_config: Dictionary = {}
 var _step_timer := 0.0
 var _last_position := Vector3.ZERO
 var _bob_phase := 0.0
 var _bob_strength := 0.0
+var _landing_offset := 0.0
+var _was_on_floor := false
 var _base_camera_position := Vector3(0, STANDING_CAMERA_Y, 0)
 var _base_camera_roll := 0.0
+var _qte_shove_strength := 0.0
+var _qte_shove_tween: Tween
+var _opening_camera_animated := false
 var _transition_start_position := Vector3.ZERO
 var _transition_start_yaw := 0.0
 @export var allow_jump := false
@@ -45,10 +56,12 @@ func _ready() -> void:
 	_capsule_node.position.y = STANDING_HEIGHT * 0.5
 	add_child(_capsule_node)
 	_camera = Camera3D.new()
+	_camera.name = "PlayerCamera"
 	_camera.position = _base_camera_position
 	_camera.current = true
 	_camera.fov = 78
 	add_child(_camera)
+	flashlight = get_node_or_null("FlashlightController")
 	_last_position = global_position
 	floor_constant_speed = true
 	floor_max_angle = deg_to_rad(55)
@@ -61,11 +74,11 @@ func _process(delta: float) -> void:
 	_update_camera_bob(delta)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _transitioning:
+	if _transitioning or _qte_locked:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		rotate_y(-event.relative.x * MOUSE_SENSITIVITY)
-		_camera.rotate_x(-event.relative.y * MOUSE_SENSITIVITY)
+		rotate_y(-event.relative.x * mouse_sensitivity)
+		_camera.rotate_x(-event.relative.y * mouse_sensitivity)
 		_camera.rotation.x = clampf(_camera.rotation.x, deg_to_rad(-82), deg_to_rad(82))
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_E:
@@ -73,30 +86,37 @@ func _unhandled_input(event: InputEvent) -> void:
 				escape_requested.emit()
 			else:
 				interact_requested.emit()
-		elif event.keycode == KEY_ESCAPE:
-			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else Input.MOUSE_MODE_CAPTURED
+		elif event.is_action_pressed("flashlight_toggle") and not _has_keyboard_focus():
+			if flashlight != null:
+				flashlight.call("toggle_flashlight")
 		elif event.keycode == KEY_SPACE and allow_jump and not _hidden:
 			_jump_requested = true
 
+func _has_keyboard_focus() -> bool:
+	var focused := get_viewport().gui_get_focus_owner()
+	return focused is Control and focused.focus_mode != Control.FOCUS_NONE
+
 func _physics_process(delta: float) -> void:
-	if _transitioning:
+	if _transitioning or _qte_locked:
 		velocity = Vector3.ZERO
 		_last_position = global_position
 		return
 
 	var input_vector := Vector2.ZERO
 	# Positive Y is forward here, so arrows and WASD share exactly the same mapping.
-	if Input.is_action_pressed("ui_left") or Input.is_key_pressed(KEY_A): input_vector.x -= 1.0
-	if Input.is_action_pressed("ui_right") or Input.is_key_pressed(KEY_D): input_vector.x += 1.0
-	if Input.is_action_pressed("ui_up") or Input.is_key_pressed(KEY_W): input_vector.y += 1.0
-	if Input.is_action_pressed("ui_down") or Input.is_key_pressed(KEY_S): input_vector.y -= 1.0
+	if Input.is_action_pressed("move_left"): input_vector.x -= 1.0
+	if Input.is_action_pressed("move_right"): input_vector.x += 1.0
+	if Input.is_action_pressed("move_forward"): input_vector.y += 1.0
+	if Input.is_action_pressed("move_backward"): input_vector.y -= 1.0
 	input_vector = input_vector.limit_length()
 	var direction := (transform.basis * Vector3(input_vector.x, 0, -input_vector.y)).normalized()
-	var is_running := input_vector.length_squared() > 0.0 and Input.is_key_pressed(KEY_SHIFT) and not _hidden
+	var is_running := input_vector.length_squared() > 0.0 and Input.is_action_pressed("sprint") and not _hidden
 	var movement_speed := RUN_SPEED if is_running else WALK_SPEED
-	velocity.x = direction.x * movement_speed
-	velocity.z = direction.z * movement_speed
-	if _jump_requested and (is_on_floor() or is_on_wall()):
+	var horizontal_target := direction * movement_speed
+	var horizontal_rate := ground_acceleration if input_vector.length_squared() > 0.0 else ground_deceleration
+	velocity.x = move_toward(velocity.x, horizontal_target.x, horizontal_rate * delta)
+	velocity.z = move_toward(velocity.z, horizontal_target.z, horizontal_rate * delta)
+	if _jump_requested and is_on_floor():
 		velocity.y = 7.5
 		jump_count += 1
 		floor_snap_length = 0.0
@@ -107,7 +127,12 @@ func _physics_process(delta: float) -> void:
 		velocity.y = 0.0
 		floor_snap_length = 0.4
 	_jump_requested = false
+	var impact_speed := maxf(0.0, -velocity.y)
 	move_and_slide()
+	var grounded := is_on_floor()
+	if grounded and not _was_on_floor and impact_speed > 1.0:
+		_landing_offset = -minf(0.045, impact_speed * 0.004) * clampf(camera_motion_intensity, 0.0, 1.0)
+	_was_on_floor = grounded
 	if global_position.distance_to(_last_position) > 0.018:
 		_step_timer += delta
 		if _step_timer >= 0.1:
@@ -120,7 +145,7 @@ func is_moving() -> bool:
 	return Vector2(get_real_velocity().x, get_real_velocity().z).length() > 0.15
 
 func is_still() -> bool:
-	return not _transitioning and not is_moving() and not (Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_D) or Input.is_action_pressed("ui_up") or Input.is_action_pressed("ui_down") or Input.is_action_pressed("ui_left") or Input.is_action_pressed("ui_right"))
+	return not _transitioning and not is_moving() and not (Input.is_action_pressed("move_forward") or Input.is_action_pressed("move_backward") or Input.is_action_pressed("move_left") or Input.is_action_pressed("move_right"))
 
 func monster_sight_position() -> Vector3:
 	return _camera.global_position
@@ -128,8 +153,40 @@ func monster_sight_position() -> Vector3:
 func is_transitioning() -> bool:
 	return _transitioning
 
+func set_opening_camera_height(height: float) -> void:
+	_base_camera_position.y = clampf(height, 0.4, STANDING_CAMERA_Y)
+	if _camera != null:
+		_camera.position.y = _base_camera_position.y
+
+func set_opening_camera_pose(camera_position: Vector3, camera_rotation: Vector3) -> void:
+	_opening_camera_animated = true
+	_base_camera_position = camera_position
+	if _camera != null:
+		_camera.position = camera_position
+		_camera.rotation = camera_rotation
+		_base_camera_roll = camera_rotation.z
+
+func reset_opening_camera_pose() -> void:
+	set_opening_camera_pose(Vector3(0.0, STANDING_CAMERA_Y, 0.0), Vector3.ZERO)
+	_opening_camera_animated = false
+
+func play_qte_shove_reaction() -> void:
+	if camera_motion_intensity <= 0.0 or _camera == null:
+		return
+	if _qte_shove_tween != null and _qte_shove_tween.is_running():
+		_qte_shove_tween.kill()
+	_qte_shove_strength = 0.0
+	_qte_shove_tween = create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
+	_qte_shove_tween.tween_property(self, "_qte_shove_strength", 1.0, 0.11).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_qte_shove_tween.tween_property(self, "_qte_shove_strength", 0.0, 0.42).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+
 func set_hidden(value: bool) -> void:
 	_hidden = value
+	if value:
+		velocity = Vector3.ZERO
+
+func set_qte_locked(value: bool) -> void:
+	_qte_locked = value
 	if value:
 		velocity = Vector3.ZERO
 
@@ -298,6 +355,10 @@ func _apply_yaw_progress(progress: float, start: float, target: float) -> void:
 	rotation.y = lerp_angle(start, target, clampf(progress, 0.0, 1.0))
 
 func _update_camera_bob(delta: float) -> void:
+	if _opening_camera_animated:
+		return
+	var motion := clampf(camera_motion_intensity, 0.0, 1.0)
+	_landing_offset = lerpf(_landing_offset, 0.0, 1.0 - exp(-18.0 * delta)) if motion > 0.0 else 0.0
 	var horizontal_speed := Vector2(velocity.x, velocity.z).length()
 	var target_strength := 0.0
 	if not _hidden and not _transitioning:
@@ -308,5 +369,6 @@ func _update_camera_bob(delta: float) -> void:
 		var frequency := lerpf(6.0, 9.0, run_blend)
 		_bob_phase += delta * frequency
 	var amplitude := lerpf(CAMERA_BOB_WALK, CAMERA_BOB_RUN, clampf(horizontal_speed / RUN_SPEED, 0.0, 1.0))
-	_camera.position = _base_camera_position + Vector3(sin(_bob_phase * 0.5) * 0.004, sin(_bob_phase) * amplitude * _bob_strength, 0)
-	_camera.rotation.z = _base_camera_roll + sin(_bob_phase * 0.5) * CAMERA_ROLL_MAX * _bob_strength
+	var shove := _qte_shove_strength * motion
+	_camera.position = _base_camera_position + Vector3(sin(_bob_phase * 0.5) * 0.004 * _bob_strength * motion - 0.045 * shove, sin(_bob_phase) * amplitude * _bob_strength * motion + _landing_offset + 0.035 * shove, 0.055 * shove)
+	_camera.rotation.z = _base_camera_roll + sin(_bob_phase * 0.5) * CAMERA_ROLL_MAX * _bob_strength * motion - deg_to_rad(2.2) * shove

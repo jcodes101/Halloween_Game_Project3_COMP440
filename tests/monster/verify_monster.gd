@@ -15,6 +15,7 @@ func run(world: Node) -> void:
 	await _recognition_and_capture()
 	await _concealment_rules()
 	await _search_completion()
+	await _search_route_randomization()
 	await _basement_interception()
 	await _escape_and_reset()
 	Engine.time_scale = 1.0
@@ -207,8 +208,8 @@ func _concealment_rules() -> void:
 	lab.enter_closet()
 	await _wait(0.1)
 	_check(lab.monster.knows_hiding_place, "visible entry remembers the actual closet")
-	var caught := await _until(func() -> bool: return lab.outcome == "captured", 4.0)
-	_check(lab.checked_closet_count > 0 and caught, "monster checks a known closet, Environment exposes it, then physical pursuit captures")
+	var closet_inspected := await _until(func() -> bool: return lab.checked_closet_count > 0 and not lab.is_hidden, 4.0)
+	_check(closet_inspected and not lab.is_hidden and lab.monster.knows_hiding_place, "Familiar inspects the witnessed closet and exposes the player")
 
 func _search_completion() -> void:
 	await _reset(Vector3(1, 0.05, 5), Vector3(1, 0.05, 1))
@@ -221,6 +222,17 @@ func _search_completion() -> void:
 	var lost := await _until(func() -> bool: return lab.monster.monster_state == MonsterController.State.LOST_TARGET, 24.0)
 	_check(lost and lab.monster.target == null, "finite search route exhausts and clears an unseen non-hidden target")
 	_check(lab.monster.global_position.distance_to(start) > 1 and lab.monster.destination.distance_to(lab.player.global_position) > 10, "search moves through remembered reachable points, not the unseen player position")
+
+func _search_route_randomization() -> void:
+	await _reset(Vector3(0, 0.05, 5), Vector3(1, 0.05, 1))
+	lab.monster.last_seen_position = Vector3(0, 0.05, 5)
+	lab.monster._search_rng.seed = 73421
+	lab.monster._begin_search()
+	var first_order: Array = lab.monster._search_points.duplicate()
+	lab.monster._search_rng.seed = 91827
+	lab.monster._begin_search()
+	var second_order: Array = lab.monster._search_points.duplicate()
+	_check(first_order.size() >= 3 and second_order.size() == first_order.size() and first_order != second_order, "last-known-position search shuffles its reachable neighborhood route using the configured RNG")
 
 func _basement_interception() -> void:
 	await _reset(Vector3(0, 0.05, -1), Vector3(5, 0.05, 2))

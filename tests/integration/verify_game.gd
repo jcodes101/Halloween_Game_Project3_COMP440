@@ -137,9 +137,18 @@ func run(root: Node) -> void:
 	await _reset()
 	game.monster.global_position = Vector3(0, 0.05, 5.5)
 	game.monster.look_at(Vector3(0, 0.05, 7))
+	game.monster.target = game.player
+	game.monster._change_state(MonsterController.State.PURSUING)
 	game.observation.set_test_suspicion(100)
-	var captured := await _until(func() -> bool: return game.capture_started, 3)
-	_check(captured and game.capture_camera.current and int(game.audio.events.get("capture_sting", 0)) == 1, "physical pursuit starts close-up and one capture sting")
+	# Exercise the same close-encounter signal MainGame connects during play,
+	# without relying on navigation timing in this compact integration fixture.
+	game.monster._try_close_encounter()
+	var qte_open := await _until(func() -> bool: return game.game_ui.get("qte_active"), 3)
+	_check(qte_open and not game.capture_started and not game.capture_camera.current, "physical close encounter opens the five-second QTE before the capture presentation")
+	if qte_open:
+		game.game_ui.call("_finish_survival_qte", false)
+	var captured := await _until(func() -> bool: return game.capture_started, 1)
+	_check(captured and game.capture_camera.current and int(game.audio.events.get("capture_sting", 0)) == 1, "failed live QTE enters the capture close-up and plays one capture sting")
 	await _wait(1.1)
 	_check(game.environment.escape_progress == 4 and game.environment._overlay.visible, "capture presentation ends in Environment-owned captured screen")
 	await _reset()
@@ -148,5 +157,5 @@ func run(root: Node) -> void:
 		await RenderingServer.frame_post_draw
 		get_viewport().get_texture().get_image().save_png("res://design/monster_behavior/combined_game.png")
 	Engine.time_scale = 1
-	print("COMBINED GAME CHECKS: ", checks, " / failures: ", failures)
-	get_tree().quit(0 if failures == 0 else 1)
+	print("COMBINED GAME CHECKS: passed ", checks - failures, " / failed ", failures, " / total ", checks)
+	get_tree().quit(1 if failures > 0 else 0)

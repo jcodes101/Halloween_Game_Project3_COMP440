@@ -31,6 +31,8 @@ signal monster_handoff_ended
 @export var greeting_distance: float = 4.0
 @export var greeting_cooldown: float = 20.0
 @export var routine_duration_normal: float = 6.0
+@export_range(0.0, 0.5, 0.05) var routine_duration_variance := 0.2
+@export var routine_random_seed := 0
 @export var unnatural_pause_duration: float = 4.0
 @export var slow_turn_speed: float = 0.8
 @export var stare_turn_speed: float = 5.0
@@ -76,6 +78,10 @@ var target_waypoint: Vector3 = Vector3.ZERO
 var is_moving_to_station: bool = false
 var has_greeted_player: bool = false
 var repeat_chore_count: int = 0
+var _routine_rng := RandomNumberGenerator.new()
+var _station_visit_bag: Array[int] = []
+var _previous_station_index := -1
+var _current_routine_duration := 6.0
 
 # Dialogue / Cue tables
 const GREETING_LINES: Array[String] = [
@@ -99,6 +105,11 @@ const CERTAIN_CUES: Array[String] = [
 ]
 
 func _ready() -> void:
+	if routine_random_seed == 0:
+		_routine_rng.randomize()
+	else:
+		_routine_rng.seed = routine_random_seed
+	_current_routine_duration = routine_duration_normal
 	_resolve_dependencies()
 	_initialize_state()
 
@@ -249,7 +260,7 @@ func _process_normal_stage(delta: float) -> void:
 		_navigate_to_waypoint(delta, move_speed_normal)
 	else:
 		routine_timer += delta
-		if routine_timer >= routine_duration_normal:
+		if routine_timer >= _current_routine_duration:
 			_pick_next_routine_station()
 
 func _safe_global_pos(node: Node3D) -> Vector3:
@@ -380,8 +391,13 @@ func _pick_next_routine_station() -> void:
 		current_station_index = (current_station_index + 1) % 4
 		target_waypoint = _get_default_station_pos(current_station_index)
 	else:
-		current_station_index = (current_station_index + 1) % routine_stations.size()
+		for _skip_nearby in routine_stations.size():
+			current_station_index = _next_station_index(routine_stations.size())
+			if _self_global_pos().distance_to(routine_stations[current_station_index].global_position) > 0.8:
+				break
 		target_waypoint = routine_stations[current_station_index].global_position
+	var variance := clampf(routine_duration_variance, 0.0, 0.5)
+	_current_routine_duration = maxf(1.0, routine_duration_normal * _routine_rng.randf_range(1.0 - variance, 1.0 + variance))
 	
 	is_moving_to_station = true
 	self.current_action = FamiliarConstants.ACTION_IDLE
@@ -414,6 +430,12 @@ func _rotate_toward_point(target_pos: Vector3, delta: float, turn_speed: float) 
 			visual_adapter.look_toward(target_pos, delta, turn_speed)
 
 func _get_action_for_station_index(idx: int) -> String:
+	if idx >= 0 and idx < routine_stations.size():
+		var station := routine_stations[idx].name.to_lower()
+		if "kitchen" in station: return FamiliarConstants.ACTION_COOKING
+		if "pantry" in station: return FamiliarConstants.ACTION_CHECKING_PANTRY
+		if "dining" in station or "breakfast" in station: return FamiliarConstants.ACTION_CLEANING
+		if "study" in station or "book" in station or "library" in station or "family" in station: return FamiliarConstants.ACTION_READING
 	match idx % 4:
 		0: return FamiliarConstants.ACTION_COOKING
 		1: return FamiliarConstants.ACTION_CLEANING
@@ -422,12 +444,34 @@ func _get_action_for_station_index(idx: int) -> String:
 		_: return FamiliarConstants.ACTION_IDLE
 
 func _get_station_name(idx: int) -> String:
+	if idx >= 0 and idx < routine_stations.size() and not routine_stations[idx].name.is_empty():
+		return routine_stations[idx].name
 	match idx % 4:
 		0: return FamiliarConstants.STATION_KITCHEN
 		1: return FamiliarConstants.STATION_DINING
 		2: return FamiliarConstants.STATION_BOOKSHELF
 		3: return FamiliarConstants.STATION_PANTRY
 		_: return "General"
+
+func _next_station_index(count: int) -> int:
+	if count <= 1:
+		_previous_station_index = 0
+		return 0
+	if _station_visit_bag.is_empty():
+		for index in count:
+			_station_visit_bag.append(index)
+		for index in range(_station_visit_bag.size() - 1, 0, -1):
+			var other := _routine_rng.randi_range(0, index)
+			var swap := _station_visit_bag[index]
+			_station_visit_bag[index] = _station_visit_bag[other]
+			_station_visit_bag[other] = swap
+		if _station_visit_bag[0] == _previous_station_index:
+			var swap := _station_visit_bag[0]
+			_station_visit_bag[0] = _station_visit_bag[1]
+			_station_visit_bag[1] = swap
+	var selected: int = _station_visit_bag.pop_front()
+	_previous_station_index = selected
+	return selected
 
 func _get_default_station_pos(idx: int) -> Vector3:
 	match idx % 4:

@@ -210,6 +210,9 @@ func _build_actors() -> void:
 	add_child(monster)
 	monster.look_at(Vector3(player.global_position.x, monster.global_position.y, player.global_position.z))
 	monster.capture_requested.connect(_on_capture)
+	# The lab isolates monster capture consequences; gameplay QTE timing is
+	# verified through the main game's close-encounter signal path.
+	monster.close_encounter_requested.connect(func(_actor: Node3D, _duration: float) -> void: monster.resolve_close_encounter(false))
 	monster.interception_ready.connect(_on_interception_ready)
 	monster.reveal_started.connect(_on_reveal)
 	monster.hiding_place_checked.connect(_on_hiding_checked)

@@ -5,6 +5,7 @@ enum State { DISGUISED, STALKING, PURSUING, SEARCHING, LOST_TARGET, INTERCEPTING
 
 signal state_changed(previous: State, current: State)
 signal capture_requested(monster: Node3D)
+signal close_encounter_requested(monster: Node3D, duration: float)
 signal interception_ready
 signal reveal_started
 signal hiding_place_checked(position: Vector3)
@@ -34,6 +35,7 @@ var agent: NavigationAgent3D
 var visual: Node3D
 var _search_points: Array[Vector3] = []
 var _search_index := 0
+var _search_pause_remaining := 0.0
 var _was_visible := false
 var _was_hidden := false
 var _hiding_checked := false
@@ -41,10 +43,24 @@ var _known_hide_position := Vector3.ZERO
 var _appearance := ""
 var _step_distance := 0.0
 var _last_step_position := Vector3.ZERO
+var encounter_pending := false
+var encounter_cooldown := 0.0
+var stun_remaining := 0.0
+var last_heard_position := Vector3.ZERO
+var _path_refresh_timer := 0.0
+var _search_rng := RandomNumberGenerator.new()
+var _stun_pose_elapsed := 0.0
+var _stun_visual_base_position := Vector3.ZERO
+var _stun_visual_base_rotation := Vector3.ZERO
+var stun_visual_active := false
 
 func _ready() -> void:
 	if tuning == null:
 		tuning = MonsterTuning.new()
+	if tuning.search_random_seed == 0:
+		_search_rng.randomize()
+	else:
+		_search_rng.seed = tuning.search_random_seed
 	collision_layer = 4
 	collision_mask = 11 # World (1), player (2), doors (8).
 	var shape := CollisionShape3D.new()
@@ -76,8 +92,29 @@ func point_reachable(point: Vector3) -> bool:
 	var route := NavigationServer3D.map_get_path(agent.get_navigation_map(), global_position, point, true)
 	return not route.is_empty() and route[-1].distance_to(point) < 0.65
 
+## Returns a bounded alert amount for a sound that physically occurred nearby.
+## The caller owns suspicion; this controller only records the heard location.
+func hear_sound(location: Vector3, loudness: float) -> float:
+	if monster_state == State.CAPTURED or encounter_pending:
+		return 0.0
+	var distance := global_position.distance_to(location)
+	if distance > tuning.hearing_distance:
+		return 0.0
+	var alert := clampf(loudness - distance * tuning.sound_falloff_per_meter, 0.0, 60.0)
+	if alert <= 0.0:
+		return 0.0
+	last_heard_position = location
+	last_seen_position = location
+	has_last_seen = true
+	return alert
+
 func can_see_player(observation: MonsterObservation) -> bool:
 	if not is_instance_valid(player_actor):
+		return false
+	# A completed hiding transition conceals the player. Entry visibility is
+	# sampled by the Environment before the transition starts; known hiding spots
+	# are investigated through the separate hiding_place_checked path.
+	if observation.is_hidden:
 		return false
 	var eye := global_position + Vector3.UP * 1.45
 	var aim := observation.player_location + Vector3.UP * 1.55
@@ -105,6 +142,17 @@ func _physics_process(delta: float) -> void:
 		return
 	if monster_state == State.CAPTURED:
 		return
+	encounter_cooldown = maxf(0.0, encounter_cooldown - delta)
+	_path_refresh_timer = maxf(0.0, _path_refresh_timer - delta)
+	if encounter_pending:
+		_stop(delta)
+		return
+	if stun_remaining > 0.0:
+		_update_stun_visual(delta)
+		_stagger_away_from_player(delta)
+		return
+	if stun_visual_active:
+		_restore_stun_visual()
 	sees_player = can_see_player(observation)
 	player_reachable = sees_player and point_reachable(observation.player_location)
 	if observation.is_hidden and not _was_hidden and (_was_visible or sees_player):
@@ -159,7 +207,10 @@ func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 			if recognition == 2:
 				_change_state(State.PURSUING)
 				if _flat_distance(global_position, observation.player_location) <= tuning.capture_distance:
-					_capture()
+					if encounter_cooldown <= 0.0:
+						_try_close_encounter()
+					else:
+						_stop(delta)
 					return
 				_walk_to(observation.player_location, tuning.chase_speed, delta)
 			else:
@@ -232,8 +283,15 @@ func _begin_search() -> void:
 	_change_state(State.SEARCHING)
 	_search_points.clear()
 	_search_index = 0
+	_search_pause_remaining = 0.0
 	var map := agent.get_navigation_map()
-	for offset in [Vector3.ZERO, Vector3.LEFT, Vector3.FORWARD, Vector3.RIGHT, Vector3.BACK]:
+	var offsets: Array[Vector3] = [Vector3.ZERO, Vector3.LEFT, Vector3.FORWARD, Vector3.RIGHT, Vector3.BACK]
+	for index in range(offsets.size() - 1, 0, -1):
+		var other := _search_rng.randi_range(0, index)
+		var swap := offsets[index]
+		offsets[index] = offsets[other]
+		offsets[other] = swap
+	for offset in offsets:
 		var point := NavigationServer3D.map_get_closest_point(map, last_seen_position + offset * tuning.search_radius)
 		if point_reachable(point):
 			_search_points.append(point)
@@ -246,7 +304,14 @@ func _search(delta: float) -> void:
 		return
 	var point := _search_points[_search_index]
 	if _flat_distance(global_position, point) <= tuning.arrival_distance:
-		_search_index += 1
+		if _search_pause_remaining <= 0.0:
+			_search_pause_remaining = tuning.search_pause_seconds
+		else:
+			_search_pause_remaining = maxf(0.0, _search_pause_remaining - delta)
+			var look_point := _search_points[(_search_index + 1) % _search_points.size()]
+			_face(look_point, delta)
+			if _search_pause_remaining <= 0.0:
+				_search_index += 1
 		_stop(delta)
 	else:
 		_walk_to(point, tuning.stalk_speed * 0.8, delta)
@@ -258,16 +323,22 @@ func _lose_target() -> void:
 	hidden_still_time = 0.0
 	_search_points.clear()
 	_search_index = 0
+	_search_pause_remaining = 0.0
 	_change_state(State.LOST_TARGET)
 	cue_requested.emit("[Footsteps recede; she has lost you]")
 
 func _walk_to(point: Vector3, speed: float, delta: float) -> void:
 	destination = point
-	if not navigation_ready() or not point_reachable(point):
+	if not navigation_ready():
 		_stop(delta)
 		return
-	if agent.target_position.distance_to(point) > 0.15:
+	if agent.target_position.distance_to(point) > 0.5 and _path_refresh_timer <= 0.0:
+		if not point_reachable(point):
+			_stop(delta)
+			_path_refresh_timer = tuning.path_refresh_seconds
+			return
 		agent.target_position = point
+		_path_refresh_timer = tuning.path_refresh_seconds
 	var next := agent.get_next_path_position()
 	var direction := next - global_position
 	direction.y = 0
@@ -275,8 +346,9 @@ func _walk_to(point: Vector3, speed: float, delta: float) -> void:
 		_stop(delta)
 		return
 	direction = direction.normalized()
-	velocity.x = direction.x * speed
-	velocity.z = direction.z * speed
+	var horizontal_target := direction * speed
+	velocity.x = move_toward(velocity.x, horizontal_target.x, tuning.acceleration * delta)
+	velocity.z = move_toward(velocity.z, horizontal_target.z, tuning.acceleration * delta)
 	velocity.y = -0.5 if is_on_floor() else velocity.y - 9.8 * delta
 	_face(global_position + direction, delta)
 	move_and_slide()
@@ -288,18 +360,96 @@ func _face(point: Vector3, delta: float) -> void:
 		rotation.y = lerp_angle(rotation.y, atan2(-direction.x, -direction.z), min(1.0, delta * 8.0))
 
 func _stop(delta: float) -> void:
-	velocity.x = 0
-	velocity.z = 0
+	velocity.x = move_toward(velocity.x, 0.0, tuning.deceleration * delta)
+	velocity.z = move_toward(velocity.z, 0.0, tuning.deceleration * delta)
 	velocity.y = -0.5 if is_on_floor() else velocity.y - 9.8 * delta
 	move_and_slide()
 	_set_visual_motion(false)
 
 func _capture() -> void:
+	if monster_state == State.CAPTURED:
+		return
+	encounter_pending = false
+	stun_remaining = 0.0
 	_change_state(State.CAPTURED)
 	_set_appearance("Revealed")
 	velocity = Vector3.ZERO
 	_set_visual_motion(false)
 	capture_requested.emit(self)
+
+func _try_close_encounter() -> void:
+	if encounter_cooldown > 0.0 or encounter_pending or monster_state == State.CAPTURED:
+		return
+	# Every physical close encounter uses the same QTE path, regardless of the
+	# player's flashlight charge or whether its beam is currently on.
+	encounter_pending = true
+	velocity = Vector3.ZERO
+	_set_visual_motion(false)
+	close_encounter_requested.emit(self, tuning.qte_window_seconds)
+
+func resolve_close_encounter(escaped: bool) -> void:
+	if not encounter_pending:
+		return
+	encounter_pending = false
+	if not escaped:
+		_capture()
+		return
+	encounter_cooldown = tuning.qte_success_cooldown
+	stun_remaining = tuning.qte_stun_seconds
+	_begin_stun_reaction()
+	last_seen_position = player_actor.global_position if is_instance_valid(player_actor) else global_position
+	has_last_seen = true
+	target = null
+	_change_state(State.SEARCHING)
+	cue_requested.emit("[She recoils. Run or hide while she recovers]")
+
+func _stagger_away_from_player(delta: float) -> void:
+	stun_remaining = maxf(0.0, stun_remaining - delta)
+	var away := Vector3.FORWARD
+	if is_instance_valid(player_actor):
+		away = global_position - player_actor.global_position
+		away.y = 0.0
+		if away.length_squared() < 0.001:
+			away = global_basis.z
+		away = away.normalized()
+	velocity.x = away.x * tuning.qte_recoil_speed
+	velocity.z = away.z * tuning.qte_recoil_speed
+	velocity.y = -0.5 if is_on_floor() else velocity.y - 9.8 * delta
+	move_and_slide()
+	_face(global_position + away, delta)
+	_set_visual_motion(false)
+
+func _begin_stun_reaction() -> void:
+	if not is_instance_valid(visual):
+		return
+	_stun_visual_base_position = visual.position
+	_stun_visual_base_rotation = visual.rotation
+	_stun_pose_elapsed = 0.0
+	stun_visual_active = true
+	_set_visual_motion(false)
+
+func _update_stun_visual(delta: float) -> void:
+	if not stun_visual_active or not is_instance_valid(visual):
+		return
+	_stun_pose_elapsed += delta
+	var duration := maxf(0.2, tuning.qte_visual_reaction_seconds)
+	var t := clampf(_stun_pose_elapsed / duration, 0.0, 1.0)
+	# A fast defensive recoil followed by a slower recovery; only the visual child
+	# moves, so the navigation agent and collision capsule remain upright.
+	var weight := smoothstep(0.0, 0.14, t) if t < 0.14 else 1.0 - smoothstep(0.14, 1.0, t)
+	visual.position = _stun_visual_base_position + Vector3(0.0, 0.035 * weight, tuning.qte_visual_recoil_meters * weight)
+	var tilt := deg_to_rad(tuning.qte_visual_tilt_degrees) * weight
+	visual.rotation = _stun_visual_base_rotation + Vector3(-tilt, 0.0, tilt * 0.55)
+	if t >= 1.0:
+		_restore_stun_visual()
+
+func _restore_stun_visual() -> void:
+	if not stun_visual_active:
+		return
+	if is_instance_valid(visual):
+		visual.position = _stun_visual_base_position
+		visual.rotation = _stun_visual_base_rotation
+	stun_visual_active = false
 
 func _change_state(next: State) -> void:
 	if next == monster_state:
@@ -314,6 +464,7 @@ func _set_appearance(appearance: String) -> void:
 		return
 	_appearance = appearance
 	if is_instance_valid(visual):
+		stun_visual_active = false
 		remove_child(visual)
 		visual.queue_free()
 	visual = preload("res://assets/monster/MotherVisual.tscn").instantiate()
@@ -336,6 +487,7 @@ func _set_visual_motion(moving: bool) -> void:
 		animation.pause()
 
 func reset_controller(position: Vector3) -> void:
+	_restore_stun_visual()
 	global_position = position
 	velocity = Vector3.ZERO
 	target = null
@@ -353,10 +505,17 @@ func reset_controller(position: Vector3) -> void:
 	_hiding_checked = false
 	_search_points.clear()
 	_search_index = 0
+	_search_pause_remaining = 0.0
 	destination = position
 	agent.target_position = position
 	_last_step_position = position
 	_step_distance = 0.0
+	encounter_pending = false
+	encounter_cooldown = 0.0
+	stun_remaining = 0.0
+	stun_visual_active = false
+	_stun_pose_elapsed = 0.0
+	_path_refresh_timer = 0.0
 	_change_state(State.DISGUISED)
 	_set_appearance("Ordinary")
 	monster_location = position

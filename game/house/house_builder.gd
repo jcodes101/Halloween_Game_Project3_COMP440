@@ -12,17 +12,52 @@ var key: Node3D
 var window_sign: Label3D
 var asset_instances := 0
 var _scenes: Dictionary = {}
+var _televisions: Array[Node3D] = []
+var _hallway_lights: Array[OmniLight3D] = []
+var atmosphere: Node3D
+@export_group("Night Lighting")
+@export_range(0.05, 0.35, 0.01) var night_ambient_energy := 0.19
+@export_range(0.05, 0.4, 0.01) var moonlight_energy := 0.18
+@export_range(0.4, 0.9, 0.05) var practical_light_scale := 0.7
+@export var moonlight_color := Color("a9bfd6")
+const REAR_WING_Z := -22.0
+const ORIGINAL_REAR_Z := -12.0
+## Ground-floor living-room bounds in X/Z. The room grew 25% deeper by moving one
+## internal partition; the exterior shell and circulation spine stay fixed.
+const LIVING_ROOM_BOUNDS := Rect2(-11.0, 3.0, 9.8, 5.0)
 
 func build() -> void:
 	_lighting()
+	var previous := get_children()
 	_floors()
+	_group_new_children("FloorSlabs",previous)
+	previous = get_children()
 	_shell()
+	_group_new_children("ExteriorShell",previous)
+	previous = get_children()
 	_rooms()
+	_group_new_children("RoomPartitions",previous)
+	previous = get_children()
 	_stair(Vector3(4.5, 0, 10), Vector3(4.5, 3.6, 3), 2.4)
 	_stair(Vector3(-7, -3.6, -6.4), Vector3(-7, 0, 1.4), 2.4)
+	_group_new_children("Staircases",previous)
+	previous = get_children()
 	_furnish()
+	_group_new_children("FurnishingsAndGameplayProps",previous)
+	_configure_house_atmosphere()
 	_attic()
+	previous = get_children()
 	_neighborhood()
+	_group_new_children("Neighborhood",previous)
+
+func _group_new_children(group_name: String, previous: Array[Node]) -> void:
+	var group := Node3D.new()
+	group.name = group_name
+	add_child(group)
+	var current := get_children()
+	for child in current:
+		if child != group and not previous.has(child):
+			child.reparent(group,true)
 
 func _material(color: Color) -> StandardMaterial3D:
 	var result := StandardMaterial3D.new()
@@ -121,13 +156,13 @@ func _floor_rect(x1: float, x2: float, z1: float, z2: float, level: float, color
 				mesh.material_override = _material(color)
 
 func _floor_with_hole(level: float, hole: Rect2, color: Color) -> void:
-	_floor_rect(-11, hole.position.x, -12, 12, level, color)
-	_floor_rect(hole.end.x, 11, -12, 12, level, color)
-	_floor_rect(hole.position.x, hole.end.x, -12, hole.position.y, level, color)
+	_floor_rect(-11, hole.position.x, REAR_WING_Z, 12, level, color)
+	_floor_rect(hole.end.x, 11, REAR_WING_Z, 12, level, color)
+	_floor_rect(hole.position.x, hole.end.x, REAR_WING_Z, hole.position.y, level, color)
 	_floor_rect(hole.position.x, hole.end.x, hole.end.y, 12, level, color)
 
 func _floors() -> void:
-	_floor_rect(-11, 11, -12, 14.5, -3.6, Color("4b4840"))
+	_floor_rect(-11, 11, REAR_WING_Z, 14.5, -3.6, Color("4b4840"))
 	_floor_with_hole(0, Rect2(-8.4, -6.4, 2.8, 7.8), Color("70543c"))
 	_floor_with_hole(3.6, Rect2(3.1, 2.7, 2.8, 7.6), Color("665039"))
 	_floor_with_hole(7.2, Rect2(-1, -4, 2, 2), Color("59432f"))
@@ -197,7 +232,12 @@ func _door(id: String, at: Vector3, yaw: float, closed: bool) -> void:
 
 func set_door(id: String, opened: bool) -> void:
 	doors[id].open = opened
-	create_tween().tween_property(doors[id].hinge,"rotation:y",doors[id].yaw+(PI/2 if opened else 0),0.3)
+	var existing: Tween = doors[id].get("tween")
+	if existing != null and existing.is_running():
+		existing.kill()
+	var tween := create_tween()
+	doors[id].tween = tween
+	tween.tween_property(doors[id].hinge,"rotation:y",doors[id].yaw+(PI/2 if opened else 0),0.3).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	doors[id].body.collision_layer = 0 if opened else 8
 	if doors[id].has("link"):
 		doors[id].link.enabled = opened
@@ -207,8 +247,8 @@ func _window(at: Vector3, level: float, yaw: float = 0, width: float = 3.0) -> v
 	box(at+Vector3.UP*(level+1.8), Vector3(width,3.6,0.16) if absf(sin(yaw))<0.5 else Vector3(0.16,3.6,width), Color.WHITE,true,false)
 
 func _side_windows(x: float, level: float) -> void:
-	var previous := -12.0
-	for z in [-9.0,-3.0,5.0,9.0]:
+	var previous := REAR_WING_Z
+	for z in [-19.0,-15.0,-9.0,-3.0,5.0,9.0]:
 		var start: float = z-1.5
 		if start>previous:
 			_wall_segment(Vector3(x,0,(start+previous)/2),start-previous,level,PI/2)
@@ -233,9 +273,9 @@ func _shell() -> void:
 			_side_windows(-11,level)
 			_side_windows(11,level)
 		else:
-			_wall_segment(Vector3(-11,0,0),24,level,PI/2)
-			_wall_segment(Vector3(11,0,0),24,level,PI/2)
-		_wall_segment(Vector3(0,0,-12),22,level)
+			_wall_segment(Vector3(-11,0,-5),34,level,PI/2)
+			_wall_segment(Vector3(11,0,-5),34,level,PI/2)
+		_wall_segment(Vector3(0,0,REAR_WING_Z),22,level)
 		if level == -3.6:
 			wall_between(Vector2(-11,12),Vector2(2.2,12),level,11,"false_exit",true)
 			_wall_segment(Vector3(7.6,0,12),6.8,level)
@@ -249,16 +289,16 @@ func _shell() -> void:
 	model("building","roof-flat-center",Vector3(0,3.3,13),Vector3(7.2,0.25,2.2))
 	box(Vector3(0,3.425,13),Vector3(7.2,0.25,2.2),Color.WHITE,true,false)
 	for side in [-1,1]:
-		var roof := model("building","roof-flat-center",Vector3(side*5.6,11.0,0),Vector3(11.7,0.24,25))
+		var roof := model("building","roof-flat-center",Vector3(side*5.6,11.0,-5),Vector3(11.7,0.24,35))
 		roof.rotation.z = -side*deg_to_rad(18)
-		var roof_collision := box(roof.position+Vector3(0,0.12,0).rotated(Vector3.BACK,roof.rotation.z),Vector3(11.7,0.24,25),Color.WHITE,true,false)
+		var roof_collision := box(roof.position+Vector3(0,0.12,0).rotated(Vector3.BACK,roof.rotation.z),Vector3(11.7,0.24,35),Color.WHITE,true,false)
 		roof_collision.rotation.z = roof.rotation.z
-	_wall_segment(Vector3(-11,0,0),24,7.2,PI/2,2.0)
-	_wall_segment(Vector3(11,0,0),24,7.2,PI/2,2.0)
-	_wall_segment(Vector3(0,0,-12),22,7.2,0,2.0)
+	_wall_segment(Vector3(-11,0,-5),34,7.2,PI/2,2.0)
+	_wall_segment(Vector3(11,0,-5),34,7.2,PI/2,2.0)
+	_wall_segment(Vector3(0,0,REAR_WING_Z),22,7.2,0,2.0)
 	_wall_segment(Vector3(-6.5,0,12),9,7.2,0,2.0)
 	_wall_segment(Vector3(6.5,0,12),9,7.2,0,2.0)
-	_gable(-12,false)
+	_gable(REAR_WING_Z,false)
 	_gable(12,true)
 	# This opening is the real escape window; its sill requires a jump.
 	# Assemble the escape casement from kit infill and trim to match the jump
@@ -300,26 +340,72 @@ func _rooms() -> void:
 			var spans: Array = [[-12.0,-7.0],[-7.0,3.0],[3.0,7.0]] if level==0 and side<0 else [[-12.0,-7.0],[-7.0,0.0],[0.0,7.0]]
 			for span in spans:
 				var id := "mother_room" if level==3.6 and side>0 and span[0]==-7 else ""
-				wall_between(Vector2(side,span[0]),Vector2(side,span[1]),level,(span[1]-span[0])/2,id,not id.is_empty())
+				var initially_closed := false
+				if level == 3.6 and side < 0.0 and span[0] == -7.0:
+					id = "player_bedroom"
+					initially_closed = true
+				elif level == 0.0 and side < 0.0 and span[0] == -12.0:
+					id = "ground_bathroom"
+				elif level == 3.6 and side < 0.0 and span[0] == -12.0:
+					id = "upstairs_bathroom"
+				elif level == 0.0 and side > 0.0 and span[0] == -12.0:
+					id = "pantry_door"
+				elif level == 0.0 and side > 0.0 and span[0] == -7.0:
+					id = "dining_door"
+				wall_between(Vector2(side,span[0]),Vector2(side,span[1]),level,(span[1]-span[0])/2,id,initially_closed or (id == "mother_room"))
 		for x in [-11.0,1.2]:
 			for z in [-7.0,0.0]:
 				var line_z: float = 3.0 if level==0 and x<0 and z==0 else z
 				wall_between(Vector2(x,line_z),Vector2(x+9.8,line_z),level)
-	# Ground-floor front bedroom/study wall has a doorway; foyer remains connected.
-	wall_between(Vector2(-11,7),Vector2(-1.2,7),0,6)
+	# The west living-room/foyer partition moves one metre toward the foyer;
+	# its doorway remains aligned and the east stair approach stays unchanged.
+	wall_between(Vector2(-11,8),Vector2(-1.2,8),0,6)
 	wall_between(Vector2(-11,7),Vector2(-1.2,7),3.6,6)
 	wall_between(Vector2(1.2,7),Vector2(3.0,7),3.6)
 	# Basement shelves/partitions create dead ends but leave the central route open.
-	wall_between(Vector2(-11,-8),Vector2(-1.2,-8),-3.6,4)
-	wall_between(Vector2(1.2,-2),Vector2(11,-2),-3.6,4)
-	room_points = {"Kitchen":Vector3(-4,0.05,-4.9),"Dining":Vector3(3,0.05,-3),"Bookshelf":Vector3(-3.5,0.05,4.1),"Pantry":Vector3(6.2,0.05,-9)}
+	wall_between(Vector2(-11,-8),Vector2(-1.2,-8),-3.6,4,"basement_workshop",false)
+	wall_between(Vector2(1.2,-2),Vector2(11,-2),-3.6,4,"basement_utility",false)
+	room_points = {
+		"Kitchen":Vector3(-4,0.05,-4.9),"Dining":Vector3(3,0.05,-3),
+		"Bookshelf":Vector3(-3.5,0.05,4.1),"Pantry":Vector3(6.2,0.05,-9),
+		"Family Room":Vector3(-6.0,0.05,-15.0),"Breakfast Room":Vector3(6.0,0.05,-14.5),
+		"Sunroom":Vector3(7.0,0.05,-19.3),
+		"Reading Nook":Vector3(4.0,0.05,-18.8)
+	}
 	for entry in [["LIVING ROOM",Vector3(-1.04,2.5,5),PI/2],["KITCHEN / BASEMENT",Vector3(-1.04,2.5,-2),PI/2],["DINING ROOM",Vector3(1.04,2.5,-3.5),-PI/2],["MOTHER'S ROOM",Vector3(1.04,6.1,-3.5),-PI/2],["YOUR ROOM",Vector3(-1.04,6.1,-3.5),PI/2],["FALSE EXIT",Vector3(0,-1.0,11.82),PI]]:
 		_label(entry[0],entry[1],entry[2])
+	_rear_wing_rooms()
+
+func _rear_wing_rooms() -> void:
+	# Broad openings connect the original rear rooms to the extension. The
+	# offset cross-opening keeps a second route between the two sides of the wing.
+	for level in [-3.6,0.0,3.6]:
+		_wall_segment(Vector3(-8.5,0,ORIGINAL_REAR_Z),5.0,level)
+		_door_frame(Vector3(-5,level,ORIGINAL_REAR_Z),0)
+		_wall_segment(Vector3(0,0,ORIGINAL_REAR_Z),7.0,level)
+		_door_frame(Vector3(5,level,ORIGINAL_REAR_Z),0)
+		_wall_segment(Vector3(8.5,0,ORIGINAL_REAR_Z),5.0,level)
+		wall_between(Vector2(0,REAR_WING_Z),Vector2(0,ORIGINAL_REAR_Z),level,4.5,"upstairs_rear_room" if level == 3.6 else "",false)
+		# Keep the rear extension legible: the ground-floor east cross-wall
+		# separates breakfast from the sunroom; the other upper rooms stay open
+		# rather than creating narrow, under-furnished annexes.
+		if level < 0.0:
+			wall_between(Vector2(-11,-17),Vector2(-1.5,-17),level,5)
+		if level != 3.6:
+			wall_between(Vector2(1.5,-17),Vector2(11,-17),level,5)
+	_label("FAMILY ROOM",Vector3(-5,2.55,-11.65),PI)
+	_label("BREAKFAST ROOM",Vector3(5,2.55,-11.65),0)
+	_label("GUEST BEDROOM",Vector3(-5,6.15,-11.65),PI)
+	_label("UPSTAIRS STUDY",Vector3(5,6.15,-11.65),0)
+	# The open attic continues into the rear roof space; grouped storage below
+	# marks the extension while leaving the ladder route and rafters clear.
 
 func _stair(bottom: Vector3, top: Vector3, width: float) -> void:
 	var length := absf(top.z-bottom.z)
 	var height := top.y-bottom.y
-	model("building","stairs-closed",Vector3(bottom.x,bottom.y,(bottom.z+top.z)/2),Vector3(width,height,length),PI if top.z>bottom.z else 0)
+	# Kenney's stair mesh rises toward +Z by default. Rotate it when the
+	# landing is toward -Z so the visible steps match the collision ramp.
+	model("building","stairs-closed",Vector3(bottom.x,bottom.y,(bottom.z+top.z)/2),Vector3(width,height,length),PI if top.z<bottom.z else 0)
 	var body := StaticBody3D.new()
 	var collision := CollisionShape3D.new()
 	var shape := ConvexPolygonShape3D.new()
@@ -328,12 +414,36 @@ func _stair(bottom: Vector3, top: Vector3, width: float) -> void:
 	for x in [-width/2,width/2]:
 		points.append(Vector3(bottom.x+x,bottom.y-0.2,bottom.z-z_dir*0.35))
 		points.append(Vector3(bottom.x+x,bottom.y,bottom.z-z_dir*0.35))
-		points.append(Vector3(top.x+x,bottom.y-0.2,top.z+z_dir*0.35))
-		points.append(Vector3(top.x+x,top.y,top.z+z_dir*0.35))
+		# Stop the ramp before the upper landing's floor edge; extending it
+		# underneath that floor traps the player capsule below the landing.
+		points.append(Vector3(top.x+x,bottom.y-0.2,top.z-z_dir*0.35))
+		points.append(Vector3(top.x+x,top.y,top.z-z_dir*0.35))
 	shape.points = points
 	collision.shape = shape
 	body.add_child(collision)
 	add_child(body)
+	# Enclose the main stair flight at its sides so it cannot be entered through
+	# the visible mesh. Keep the basement flight's existing navigation approach.
+	if bottom.y >= 0.0:
+		var side_barrier_height := height + 1.8
+		for side in [-1.0, 1.0]:
+			var side_body := StaticBody3D.new()
+			# Layer 4 is physical for actors but excluded from the navigation bake
+			# (which reads layers 1 and 8).
+			side_body.collision_layer = 4
+			side_body.collision_mask = 0
+			var side_collision := CollisionShape3D.new()
+			var side_shape := BoxShape3D.new()
+			# Leave both landings open; agents need room to approach the stair links.
+			side_shape.size = Vector3(0.16, side_barrier_height, maxf(0.1, length - 2.0))
+			side_collision.shape = side_shape
+			side_body.add_child(side_collision)
+			side_body.position = Vector3(
+				bottom.x + side * (width * 0.5 + 0.3),
+				(bottom.y + top.y) * 0.5,
+				(bottom.z + top.z) * 0.5
+			)
+			add_child(side_body)
 	for x in [bottom.x-width/2,bottom.x+width/2]:
 		var rail := model("building","border",Vector3(x,bottom.y+0.95,(bottom.z+top.z)/2),Vector3(0.08,0.1,sqrt(length*length+height*height)))
 		rail.rotation.x = atan2(height,top.z-bottom.z)
@@ -345,21 +455,23 @@ func _prop(asset: String, at: Vector3, size: Vector3, yaw: float = 0, solid: boo
 		box(at+Vector3.UP*size.y/2,dimensions,Color.WHITE,true,false)
 	return item
 
-func _lamp(at: Vector3, energy: float = 0.75, color: Color = Color("ffd49e")) -> void:
+func _lamp(at: Vector3, energy: float = 0.75, color: Color = Color("ffd49e")) -> OmniLight3D:
 	var light := OmniLight3D.new()
 	light.position = at
 	light.light_color = color
-	light.light_energy = energy
+	light.light_energy = energy * practical_light_scale
 	light.omni_range = 8
+	light.shadow_enabled = false
 	add_child(light)
+	return light
 
-func _bed(asset: String, center: Vector3, width: float) -> void:
+func _bed(asset: String, center: Vector3, width: float, entry_offset: Vector3 = Vector3(0,0,2.4)) -> void:
 	model("furniture",asset,center+Vector3.UP*0.8,Vector3(width,0.65,3.5))
 	box(center+Vector3.UP*1.125,Vector3(width,0.65,3.5),Color.WHITE,true,false)
 	for x in [-width/2+0.15,width/2-0.15]:
 		for z in [-1.5,1.5]:
 			model("building","column",center+Vector3(x,0,z),Vector3(0.12,0.8,0.12))
-	var entry := center+Vector3(0,0,2.4)
+	var entry := center+entry_offset
 	hide_spots.append({"title":"Hide under bed", "kind":"hide", "position":entry+Vector3.UP,"prompt":"E — hide under bed","hide_config":{"entry":entry,"path":[center],"exit_yaw":0.0,"hidden_yaw":0.0,"crouch_height":0.72,"crouch_camera_y":0.53}})
 
 func _furnish() -> void:
@@ -367,7 +479,8 @@ func _furnish() -> void:
 	_prop("loungeChair",Vector3(-3.3,0,5.5),Vector3(1.2,1.2,1.2),PI/2)
 	_prop("tableCoffee",Vector3(-6.7,0,6.2),Vector3(1.8,0.55,1.0))
 	_prop("cabinetTelevision",Vector3(-9.2,0,6.5),Vector3(2.5,0.7,0.45))
-	_prop("televisionVintage",Vector3(-9.2,0.7,6.5),Vector3(1.5,1.1,0.5))
+	var living_room_tv := _prop("televisionVintage",Vector3(-9.2,0.7,6.5),Vector3(1.5,1.1,0.5))
+	_televisions.append(living_room_tv)
 	_prop("rugRectangle",Vector3(-7,0.035,5.2),Vector3(5,0.03,3),0,false)
 	_prop("bookcaseOpen",Vector3(-2,0,3.5),Vector3(1.3,2.5,0.45))
 	hide_spots.append({"title":"Hide behind sofa","kind":"hide","position":Vector3(-4.5,1,5),"prompt":"E — hide behind sofa","hide_config":{"entry":Vector3(-4.5,0,5),"path":[Vector3(-4.5,0,3.75),Vector3(-7,0,3.75)],"crouch_height":0.95,"crouch_camera_y":0.78}})
@@ -414,8 +527,6 @@ func _furnish() -> void:
 	for p in [Vector3(-8.5,-2.6,5.0),Vector3(-8.5,-2.6,8.0),Vector3(-5.5,-2.6,8.0),Vector3(-5.5,-2.6,5.0),Vector3(-9.5,-3.6,6.5),Vector3(-9.5,-2.6,6.5)]:
 		_prop("cardboardBoxClosed",p,Vector3(1.1,0.95,1.1))
 	hide_spots.append({"title":"Hide behind storage boxes","kind":"hide","position":Vector3(-4.2,-2.6,6.5),"prompt":"E — hide behind storage boxes","hide_config":{"entry":Vector3(-4.2,-3.6,6.5),"path":[Vector3(-7.2,-3.6,6.5)],"crouch_height":0.95,"crouch_camera_y":0.78}})
-	_prop("washer",Vector3(8,-3.6,-8),Vector3(1.1,1.2,1.0))
-	_prop("dryer",Vector3(9.5,-3.6,-8),Vector3(1.1,1.2,1.0))
 	_prop("table",Vector3(5,-3.6,-8),Vector3(3,0.9,1.0))
 	for x in [-4.0,4.0]:
 		for z in [-9.0,0.0,9.0]:
@@ -442,8 +553,12 @@ func _furnish() -> void:
 	var stem := box(key.position+Vector3(0.18,0,0),Vector3(0.32,0.045,0.045),Color("c9a854"),false)
 	stem.reparent(key,true)
 	# Warm household lamps and cool, dim basement lamps.
-	for p in [Vector3(-6,2.8,3),Vector3(-5,2.8,-3),Vector3(6,2.8,-3),Vector3(0,2.8,9),Vector3(-6,6.3,-3),Vector3(6,6.3,-3),Vector3(0,6.3,2),Vector3(0,9.8,3)]:
+	for p in [Vector3(-6,2.8,3),Vector3(-5,2.8,-3),Vector3(6,2.8,-3),Vector3(-6,6.3,-3),Vector3(6,6.3,-3),Vector3(0,9.8,3)]:
 		_lamp(p,0.8,Color("ffd49e"))
+	var hallway_lights: Array[OmniLight3D] = [
+		_lamp(Vector3(0,2.8,9),0.8,Color("ffd49e")),
+		_lamp(Vector3(0,6.3,2),0.8,Color("ffd49e")),
+	]
 	_lamp(Vector3(-6,-0.8,5),0.55,Color("b2c4d4"))
 	_lamp(Vector3(5,-0.8,-7),0.65,Color("c0cbd4"))
 	for p in [Vector3(-9,0,6),Vector3(9,0,9),Vector3(-9,3.6,9)]:
@@ -463,6 +578,75 @@ func _furnish() -> void:
 	_prop("books",Vector3(3,4.4,-10.5),Vector3(1.1,0.45,0.4),0,false)
 	_prop("books",Vector3(-9,4.4,5),Vector3(1.1,0.45,0.35),0,false)
 	_prop("books",Vector3(8,4.5,-9.5),Vector3(0.8,0.35,0.4),PI/2,false)
+	_rear_wing_furnish()
+	_hallway_lights = hallway_lights
+
+func _rear_wing_furnish() -> void:
+	# Ground floor: a family room, breakfast room, and linked sunroom/reading nook.
+	var previous := get_children()
+	_prop("loungeSofa",Vector3(-7,0,-15.1),Vector3(3.5,1.4,1.5))
+	_prop("tableCoffee",Vector3(-7,0,-13.8),Vector3(1.7,0.55,0.95))
+	_prop("cabinetTelevision",Vector3(-7,0,-12.7),Vector3(2.2,0.7,0.45))
+	var family_room_tv := _prop("televisionVintage",Vector3(-7,0.7,-12.7),Vector3(1.4,1.0,0.45))
+	_televisions.append(family_room_tv)
+	_prop("rugRectangle",Vector3(-7,0.035,-15),Vector3(4.8,0.03,2.8),0,false)
+	_group_new_children("Ground_West_FamilyRoom",previous)
+	previous = get_children()
+	_prop("table",Vector3(6,0,-14.5),Vector3(2.8,0.9,1.6))
+	for x in [4.2,7.8]:
+		for z in [-13.2,-15.8]:
+			_prop("chair",Vector3(x,0,z),Vector3(0.65,1.1,0.65),PI/2)
+	_prop("kitchenCabinet",Vector3(9.8,0,-14.2),Vector3(1.0,1.0,1.8),PI/2)
+	_prop("kitchenCabinetUpper",Vector3(9.8,1.9,-14.2),Vector3(1.0,0.85,1.8),PI/2)
+	_group_new_children("Ground_East_BreakfastRoom",previous)
+	previous = get_children()
+	_prop("loungeChair",Vector3(6.7,0,-19.3),Vector3(1.2,1.2,1.2),PI/2)
+	_prop("sideTable",Vector3(8.2,0,-19.3),Vector3(0.8,0.7,0.8))
+	_prop("lampRoundTable",Vector3(8.2,0.7,-19.3),Vector3(0.4,0.65,0.4),0,false)
+	_prop("pottedPlant",Vector3(9.6,0,-20.7),Vector3(0.9,1.5,0.9))
+	_prop("bookcaseOpen",Vector3(2.5,0,-20.5),Vector3(1.5,2.5,0.6))
+	_lamp(Vector3(5.5,2.8,-19.3),0.65)
+	_group_new_children("Ground_East_Sunroom",previous)
+	# Second floor: guest bedroom on the west, study and reading room on the east.
+	previous = get_children()
+	_bed("bedSingle",Vector3(-5.3,3.6,-14.9),2.2,Vector3(0,0,2.3))
+	_prop("cabinetBed",Vector3(-9.1,3.6,-13.7),Vector3(0.8,0.65,0.65))
+	_prop("lampRoundTable",Vector3(-9.1,4.25,-13.7),Vector3(0.4,0.6,0.4),0,false)
+	_lamp(Vector3(-9.1,5.2,-13.7),0.65)
+	_prop("cabinetBed",Vector3(-3.5,3.6,-15.1),Vector3(1.2,0.9,0.55))
+	_group_new_children("Second_West_GuestBedroom",previous)
+	previous = get_children()
+	_prop("desk",Vector3(6,3.6,-14.5),Vector3(2.4,0.9,1.0))
+	_prop("chairDesk",Vector3(6,3.6,-13.1),Vector3(0.75,1.1,0.75))
+	_prop("bookcaseOpen",Vector3(9.1,3.6,-15.4),Vector3(1.3,2.5,0.55))
+	_prop("books",Vector3(9.1,4.4,-15.4),Vector3(1.0,0.4,0.35),0,false)
+	_group_new_children("Second_East_Study",previous)
+	previous = get_children()
+	_prop("loungeChair",Vector3(6.8,3.6,-19.4),Vector3(1.2,1.2,1.2),PI/2)
+	_prop("sideTable",Vector3(8.3,3.6,-19.4),Vector3(0.8,0.7,0.8))
+	_prop("lampRoundTable",Vector3(8.3,4.3,-19.4),Vector3(0.4,0.6,0.4),0,false)
+	_prop("bookcaseOpen",Vector3(2.6,3.6,-20.4),Vector3(1.4,2.5,0.55))
+	_lamp(Vector3(5.6,6.3,-19.4),0.6)
+	_group_new_children("Second_East_ReadingRoom",previous)
+	# Basement: reuse shelving, boxes and work surfaces to extend the existing
+	# storage/workshop route without moving the crowbar or false-exit encounter.
+	previous = get_children()
+	_prop("table",Vector3(-7,-3.6,-14.7),Vector3(2.8,0.9,1.2))
+	_prop("bookcaseOpen",Vector3(-9.4,-3.6,-19.3),Vector3(1.2,2.5,0.55))
+	_prop("cardboardBoxClosed",Vector3(-6.8,-3.6,-19.7),Vector3(1.1,1.0,1.1))
+	_prop("cardboardBoxClosed",Vector3(-4.5,-3.6,-20.2),Vector3(1.0,0.9,1.0))
+	_prop("washer",Vector3(7.6,-3.6,-14.6),Vector3(1.1,1.2,1.0))
+	_prop("dryer",Vector3(9.1,-3.6,-14.6),Vector3(1.1,1.2,1.0))
+	_prop("cardboardBoxClosed",Vector3(6.5,-3.6,-19.5),Vector3(1.2,1.0,1.1))
+	_prop("cardboardBoxClosed",Vector3(8.3,-3.6,-20.3),Vector3(1.1,0.9,1.0))
+	_lamp(Vector3(1.5,-0.8,-19),0.5,Color("b2c4d4"))
+	_group_new_children("Basement_RearStorage",previous)
+
+func _configure_house_atmosphere() -> void:
+	atmosphere = preload("res://game/house/house_atmosphere.gd").new()
+	atmosphere.name = "HouseAtmosphere"
+	get_node("FurnishingsAndGameplayProps").add_child(atmosphere)
+	atmosphere.call("configure",_televisions,Vector3(-4.0,1.04,-6.05),_hallway_lights)
 
 func _attic() -> void:
 	boards = model("building","barricade-doorway-a",Vector3(0,7.03,-3),Vector3(1.9,0.12,1.9))
@@ -482,10 +666,11 @@ func _attic() -> void:
 		remove_child(rung)
 		ladder.add_child(rung)
 	ladder.visible = false
+	var previous := get_children()
 	for x in [-8.0,8.0]:
-		for z in [-8.0,-2.0,6.0]:
+		for z in [-19.0,-14.0,-8.0,-2.0,6.0]:
 			_prop("cardboardBoxClosed",Vector3(x,7.2,z),Vector3(1.6,1.1,1.3))
-	for z in [-8.0,-2.0,4.0,10.0]:
+	for z in [-20.0,-14.0,-8.0,-2.0,4.0,10.0]:
 		for side in [-1,1]:
 			var beam := model("building","border",Vector3(side*5.5,10.85,z),Vector3(11.6,0.14,0.18))
 			beam.rotation.z = -side*deg_to_rad(18)
@@ -493,26 +678,30 @@ func _attic() -> void:
 				mesh.material_override = _material(Color("503b2b"))
 	window_sign = _label("ATTIC WINDOW — LOCKED",Vector3(0,10.9,11.8))
 
+	_group_new_children("AtticStorageAndRafters",previous)
+
 func _lighting() -> void:
 	var world := WorldEnvironment.new()
 	world.environment = Environment.new()
 	world.environment.background_mode = Environment.BG_SKY
 	var sky := Sky.new()
 	var sky_material := ProceduralSkyMaterial.new()
-	sky_material.sky_top_color = Color("172538")
-	sky_material.sky_horizon_color = Color("cb8871")
-	sky_material.ground_horizon_color = Color("ac7764")
-	sky_material.ground_bottom_color = Color("263829")
+	sky_material.sky_top_color = Color("0d1725")
+	sky_material.sky_horizon_color = Color("343e4b")
+	sky_material.ground_horizon_color = Color("262c31")
+	sky_material.ground_bottom_color = Color("12181e")
 	sky.sky_material = sky_material
 	world.environment.sky = sky
 	world.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	world.environment.ambient_light_color = Color("77869a")
-	world.environment.ambient_light_energy = 0.35
+	world.environment.ambient_light_color = Color("667282")
+	world.environment.ambient_light_energy = night_ambient_energy
+	world.environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	world.environment.tonemap_exposure = 0.95
 	add_child(world)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-9,-65,0)
-	sun.light_color = Color("ffbf8b")
-	sun.light_energy = 0.65
+	sun.light_color = moonlight_color
+	sun.light_energy = moonlight_energy
 	sun.shadow_enabled = true
 	add_child(sun)
 

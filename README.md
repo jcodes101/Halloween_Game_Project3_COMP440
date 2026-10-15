@@ -1,11 +1,10 @@
 # The Familiar
 
-A first-person horror game project made with Godot. The current **main** branch
-launches one combined scene with a furnished two-floor house, basement, attic,
-evening neighborhood, first-person player, Familiar routines, Monster threats,
-hiding, escape, capture and approved audio. Find the basement crowbar and Mother's
-window key, open the boarded attic hatch, and jump out the unlocked attic window.
-Observation/Suspicion code has not been supplied yet: 1/2/3 temporarily simulate it.
+A first-person horror game project made with Godot. F5 opens the cinematic main
+menu; New Game launches the four-level house, story introduction, and bedroom
+wake-up sequence. The game includes Familiar routines, pursuit, hiding, escape,
+capture, flashlight batteries, VHS effects, and optional dynamic music. Continue
+is disabled until a real gameplay save system is added.
 
 ## Install the requirements
 
@@ -65,9 +64,9 @@ See the [official project import instructions](https://docs.godotengine.org/en/4
 | Shift + movement | Run |
 | E | Pick up a key, interact with a door/exit, enter or leave a hiding place |
 | Space | Jump; jump through the unlocked attic window to escape |
-| Esc | Release or recapture the mouse |
-| R | Restart after escaping or being captured |
-| 1 / 2 / 3 | Temporary suspicion controls: unaware / doubtful / certain |
+| Tab or Esc | Pause / resume |
+| R while paused | Open restart confirmation |
+| H | Open Controls in the pause menu |
 | F8 in the editor | Stop the game |
 
 Find the **crowbar in the basement**, reached through the kitchen stairs. The
@@ -75,10 +74,11 @@ Find the **crowbar in the basement**, reached through the kitchen stairs. The
 **attic window key in Mother's room** on the second floor. Use the crowbar at the
 boarded ceiling hatch in the upstairs hall, then E to climb the pull-down ladder.
 Unlock the attic window, **jump through with Space + forward**, and land outside
-to escape. Capturing you starts a close-up and jump-scare sting before restart.
-Press 2 or 3 to test stalking or pursuit earlier. Follow the on-screen prompts.
-Hiding spots include behind the sofa, under both beds, in the upstairs closet,
-and behind storage boxes in the basement.
+to escape. A capture starts a five-second QTE; failure leads to the capture
+ending, where Try Again and Main Menu are available.
+Follow the on-screen randomized keys during a capture QTE. Hiding spots include
+behind the sofa, under both beds, in the upstairs closet, and behind storage
+boxes in the basement.
 E leaves cover; moving also exits cover and resets
 the stillness timer. Hiding transitions temporarily lock movement.
 
@@ -89,7 +89,7 @@ seconds. If she sees you enter, she remembers and checks that hiding place.
 ## Try the monster behavior separately
 
 In Godot's FileSystem panel, open **`tests/monster/behavior_lab.tscn`** and press
-**F6 (Run Current Scene)**. F5 launches the combined game at `game/main.tscn`.
+**F6 (Run Current Scene)**. F5 launches the main menu.
 
 The lab uses WASD, mouse look, Shift, and E. Press **1** for the disguised mother,
 **2** for stalking, **3** for pursuit, and **R** to restart. Its camera has a lower
@@ -101,6 +101,9 @@ handle, and sample pickup audio. Headphones help judge sound direction.
 
 The monster lab's sample item and safe exit are independent test interactions.
 See the [detailed monster lab guide](design/monster_behavior/README.md).
+
+Developer-only suspicion controls (1 / 2 / 3) are available in the monster lab
+and when gameplay debugging is enabled; they are not normal player controls.
 
 ## Troubleshooting
 

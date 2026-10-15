@@ -35,6 +35,7 @@ func effect(event: String, location: Vector3) -> void:
 func _play(clip: AudioStream, location: Vector3, event: String, volume: float) -> void:
 	var speaker := AudioStreamPlayer3D.new()
 	speaker.stream = clip
+	speaker.bus = "SFX" if AudioServer.get_bus_index("SFX") >= 0 else "Master"
 	speaker.volume_db = volume
 	speaker.unit_size = 3.0
 	speaker.max_distance = 20.0

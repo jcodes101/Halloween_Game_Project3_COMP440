@@ -5,6 +5,9 @@ extends Resource
 @export var pursue_threshold := 70.0
 @export var stalk_speed := 2.0
 @export var chase_speed := 4.3
+@export_range(2.0, 24.0, 0.5) var acceleration := 12.0
+@export_range(2.0, 30.0, 0.5) var deceleration := 16.0
+@export_range(0.1, 1.0, 0.05) var path_refresh_seconds := 0.25
 @export var stalk_distance := 4.0
 @export var capture_distance := 0.9
 @export var hidden_still_seconds := 3.0
@@ -13,3 +16,19 @@ extends Resource
 @export_range(10, 180) var sight_angle_degrees := 140.0
 @export var search_radius := 3.0
 @export var arrival_distance := 0.45
+@export_range(4.0, 24.0, 0.5) var hearing_distance := 13.0
+@export_range(0.5, 5.0, 0.1) var sound_falloff_per_meter := 2.2
+@export_range(1.5, 8.0, 0.1) var qte_window_seconds := 5.0
+@export_range(0.5, 5.0, 0.1) var qte_stun_seconds := 1.0
+@export_range(0.5, 6.0, 0.1) var qte_recoil_speed := 2.2
+@export_range(1.0, 6.0, 0.1) var qte_success_cooldown := 2.5
+@export_range(0.2, 2.0, 0.05) var qte_visual_reaction_seconds := 1.05
+@export_range(1.0, 24.0, 0.5) var qte_visual_recoil_meters := 0.18
+@export_range(2.0, 28.0, 0.5) var qte_visual_tilt_degrees := 12.0
+@export_range(1, 6, 1) var qte_sequence_length := 3
+@export var qte_key_pool: Array[int] = [KEY_Q, KEY_E, KEY_R, KEY_F]
+## Zero uses a randomized seed. A non-zero value is useful for repeatable tests.
+@export var qte_random_seed := 0
+@export_range(0.2, 3.0, 0.1) var search_pause_seconds := 0.9
+## Zero uses a randomized search-route order; set a non-zero value to reproduce it.
+@export var search_random_seed := 0
