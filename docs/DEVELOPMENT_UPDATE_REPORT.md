@@ -8,7 +8,7 @@
 
 The project has moved from a compact prototype and separate monster lab toward a connected first-person horror game. The current project entry point is a cinematic title menu. A fresh run enters the existing story introduction and bedroom wake-up, then plays in the four-level procedural house. The active feature set includes the house escape route, interactive doors, Familiar routines and pursuit, hiding, flashlight and randomized battery pickups, a five-second capture QTE, a scene-local adaptive music manager, VHS distortion, environment effects, and shared menus/HUD.
 
-At the start of the audit, the working tree contained 26 modified tracked files and multiple new source/UI/test/audio resources. This audit adds two report files, corrections to existing player-facing help/layout text, and a fade wait in the frontend test. The house verification writes to nine tracked `design/house/*.png` screenshot paths; those captures have HUD/debug framing. They were already modified at audit start, are preserved in the working tree, and are excluded from the commit as generated-looking previews. Git history shows `main` and its locally recorded `origin/main` reference at `ebb39bcf5e13823daf0d583d31f7360bd593c54b` before the fetch phase; this is a snapshot and must be rechecked before commit/push.
+The gameplay and environment sections preserve the prior full-project audit. At the start of this web-deployment update, `main` and `origin/main` were at `0705ded`; the nine local `design/house/*.png` preview edits were present and were preserved, not staged. The deployment workflow and local export settings were committed as `e5ee6b5` and pushed without including those images. The Pages deployment result and public asset checks are recorded below.
 
 ## Core gameplay
 
@@ -190,11 +190,11 @@ Godot-generated `.import` files and `.godot` cache files are ignored by the repo
 
 ### MAJOR — GitHub Pages uses an automated Godot Web deployment
 
-The repository's prior Pages root served the Jekyll placeholder, while an older Godot export was present under `/docs/`. Repository Pages settings were changed, with the user's approval, from branch publishing to GitHub Actions. The new `.github/workflows/deploy-web.yml` builds the actual Godot project and publishes a Pages artifact, targeting `https://jcodes101.github.io/Halloween_Game_Project3_COMP440/`. It does not publish the nine locally modified `design/house` previews or commit generated `web-build` output. The first workflow deployment and live-site checks are recorded in `docs/WEB_DEPLOYMENT.md` after completion.
+The repository's prior Pages root served the Jekyll placeholder, while an older Godot export was present under `/docs/`. Repository Pages settings were changed, with the user's approval, from branch publishing to GitHub Actions. The new `.github/workflows/deploy-web.yml` builds the actual Godot project and publishes a Pages artifact, targeting `https://jcodes101.github.io/Halloween_Game_Project3_COMP440/`. It does not publish the nine locally modified `design/house` previews or commit generated `web-build` output. The first workflow deployment and live-site checks are recorded in `docs/WEB_DEPLOYMENT.md`.
 
 ### HIGH — Reproducible production export and verification in CI
 
-The workflow pins Godot 4.7.2, uses the existing Web preset and Compatibility renderer, disables Web thread support, imports resources, runs the project verification suites, exports the four required loader/runtime/game-data files, checks they are nonempty, adds `.nojekyll`, and uploads them using the GitHub Pages artifact/deploy actions. Build-job permissions are limited to contents read; the deploy job uses Pages write and OIDC identity-token access. It triggers on pushes to `main` and manual workflow dispatch. The workflow YAML parsed locally; GitHub Actions remains the authoritative execution check.
+The workflow pins Godot 4.7.2, uses the existing Web preset and Compatibility renderer, disables Web thread support, imports resources, runs the project verification suites, exports the four required loader/runtime/game-data files, checks they are nonempty, adds `.nojekyll`, and uploads them using the GitHub Pages artifact/deploy actions. Build-job permissions are limited to contents read; the deploy job uses Pages write and OIDC identity-token access. It triggers on pushes to `main` and manual workflow dispatch. Its first GitHub Actions run completed successfully.
 
 ### MEDIUM — Web bundle contents and local serving
 
@@ -210,7 +210,9 @@ The Web preset excludes `design/**`, `docs/**`, and `handoff/**`; `/web-build/` 
 | --- | --- | --- |
 | Web export | Passed | Godot 4.7.2 produced nonempty HTML, JS, WASM, and PCK files. |
 | Local HTTP smoke test | Passed | All four core resources returned HTTP 200 with expected content lengths; WASM served as `application/wasm`. |
-| Workflow YAML / downloader syntax | Passed | PyYAML parsed the workflow; Python bytecode compilation passed for the helper. GitHub Actions execution is still required to validate the runner end-to-end. |
+| Workflow YAML / downloader syntax | Passed | PyYAML parsed the workflow; Python bytecode compilation passed for the helper. |
+| GitHub Actions build and Pages deployment | Passed | Run 38830531879 completed successfully for `e5ee6b5`; build and deploy jobs both succeeded. |
+| Live Pages resource checks | Passed | `/`, `index.js`, `index.wasm`, and `index.pck` returned HTTP 200; the WASM response used `application/wasm`. |
 | Live browser gameplay | Not run | No browser runtime or browser automation was available. Do not treat the export or HTTP test as proof that pointer lock, WebGL, audio, or full gameplay work in-browser. |
 
-Godot emitted environment warnings because it could not write its user log files in this sandbox or read the Windows root certificate store. The export and verification commands still returned exit code 0. The local web artifact has not yet been inspected in a graphical browser.
+Godot emitted environment warnings because it could not write its user log files in this sandbox or read the Windows root certificate store. The export and verification commands still returned exit code 0. Neither the local export nor the live site was inspected in a graphical browser, so WebGL rendering, input, audio, and interactive gameplay remain manual checks.

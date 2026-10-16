@@ -6,7 +6,7 @@
 - Repository: <https://github.com/jcodes101/Halloween_Game_Project3_COMP440>
 - Pages source: GitHub Actions (`build_type: workflow`), configured for the repository after approval.
 
-The URL is the intended public destination. The initial production artifact has been built and passed a local HTTP asset smoke test. The public URL should be treated as deployed only after the Actions `Build and deploy Godot Web game` run completes and the live files are checked; see the deployment status at the end of this file.
+The first Actions deployment completed successfully for commit `e5ee6b578fa5fb9b109400965b9500b89266a2e2`. The root now serves the Godot export rather than the former Jekyll page. The live files have been checked over HTTPS; see the deployment status below.
 
 ## How deployment works
 
@@ -66,7 +66,16 @@ For a smaller local template setup, `python tools/download_godot_web_templates.p
 
 Initial inspection found that the site's root was a Jekyll placeholder, while an older Web export lived under `/docs/`. That export was stale relative to current `main`; it was not used as the new deployment artifact. The Pages source has been switched to Actions, so the current site updates after a successful workflow deployment.
 
-**Status for this update:** the local production export and local HTTP checks passed. The first Actions deployment and live GitHub Pages response must be verified after the commit is pushed. Update this paragraph with the Actions run result, deployed revision, and live asset checks after that verification.
+**Status for this update:** Actions run [38830531879](https://github.com/jcodes101/Halloween_Game_Project3_COMP440/actions/runs/38830531879) completed successfully for `e5ee6b578fa5fb9b109400965b9500b89266a2e2`. The build job and Pages deploy job both succeeded. Live HTTPS `HEAD` checks returned HTTP 200 for the page and all core assets:
+
+| Live path | HTTP | Content type | Content length |
+| --- | ---: | --- | ---: |
+| `/` | 200 | `text/html; charset=utf-8` | 5,444 bytes |
+| `/index.js` | 200 | `application/javascript; charset=utf-8` | 279,815 bytes |
+| `/index.wasm` | 200 | `application/wasm` | 39,514,754 bytes |
+| `/index.pck` | 200 | `application/octet-stream` | 45,022,692 bytes |
+
+The deployed HTML size matches the local production export. The CI PCK is slightly smaller than the local PCK, but both are nonempty and the workflow export completed successfully. The main menu and interactive gameplay still require a browser playtest; these HTTP checks do not prove WebGL or gameplay behavior.
 
 ## Browser considerations
 
@@ -102,6 +111,8 @@ For the local source revision audited on 2026-10-15:
 - Headless main-menu launch: exit 0.
 - Production Web export: core HTML, JavaScript, WebAssembly, and PCK files generated.
 - Local HTTP smoke test: all four core files returned HTTP 200; `index.wasm` was served as `application/wasm`.
+- GitHub Actions run 38830531879: build tests, export, artifact upload, and Pages deploy all succeeded for `e5ee6b5`.
+- Live GitHub Pages: root, JavaScript, WebAssembly, and PCK returned HTTP 200 with the expected WebAssembly MIME type.
 - Automated browser playthrough: not run; no browser automation/runtime was available in this environment.
 
 Godot also reported that this sandbox could not write its per-user `user://logs` directory and could not read the Windows root certificate store. These environment warnings did not cause the listed validation commands to fail. The monster navigation bake reports agent-size rounding warnings. The integration and house test harnesses reported ObjectDB/resource shutdown warnings after all assertions passed.
