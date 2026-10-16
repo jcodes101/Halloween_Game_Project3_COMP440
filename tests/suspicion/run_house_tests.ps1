@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$GodotPath,
-    [switch]$HouseRegression
+    [switch]$HouseRegression,
+    [switch]$EscapeRegression
 )
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
@@ -55,6 +56,9 @@ try {
     New-Item -ItemType Directory -Path $env:APPDATA, $env:LOCALAPPDATA | Out-Null
     $parseScripts = @(Get-ChildItem -LiteralPath (Join-Path $verificationRoot 'scripts/observation/house') -Filter '*.gd')
     $parseScripts += Get-Item -LiteralPath (Join-Path $verificationRoot 'tests/suspicion/phase3b/verify_house_observation.gd')
+    if ($EscapeRegression) {
+        $parseScripts += Get-Item -LiteralPath (Join-Path $verificationRoot 'tests/suspicion/escape/verify_escape.gd')
+    }
     foreach ($script in $parseScripts) {
         $relative = $script.FullName.Substring($verificationRoot.Length + 1).Replace('\', '/')
         Invoke-HouseGodot -GodotArguments @('--check-only', '--script', "res://$relative")
@@ -64,6 +68,9 @@ try {
     Invoke-HouseGodot -GodotArguments @('--scene', 'res://tests/suspicion/phase3b/verify_house_observation.tscn', '--quit-after', '3000', '--', '--verify-monster') -ExpectedPattern '^PHASE 3B CHECKS: \d+ passed, 0 failed'
     if ($HouseRegression) {
         Invoke-HouseGodot -GodotArguments @('--scene', 'res://tests/suspicion/house_preview.tscn', '--', '--verify-house') -ExpectedPattern '^HOUSE CHECKS: \d+ / failures: 0$' -AllowHouseAudioShutdown
+    }
+    if ($EscapeRegression) {
+        Invoke-HouseGodot -GodotArguments @('--scene', 'res://tests/suspicion/escape/verify_escape.tscn', '--quit-after', '15000') -ExpectedPattern '^ESCAPE CHECKS: \d+ passed, 0 failed'
     }
     Write-Output 'PHASE 3B VERIFICATION COMPLETED'
 } finally {

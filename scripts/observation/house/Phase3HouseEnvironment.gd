@@ -5,6 +5,23 @@ var memorabilia: Array[Node] = []
 var _observation_game: Node
 var _coordinator: Node
 
+func _physics_process(_delta: float) -> void:
+	# The inherited idle check can miss the brief airborne window crossing.
+	# Latch the same eligibility at movement cadence; the parent still owns
+	# ground-landing detection, escape_completed, controls and the ending UI.
+	if escape_progress in [EscapeProgress.ESCAPED, EscapeProgress.CAPTURED]:
+		return
+	var at: Vector3 = _player.global_position
+	if window_open and at.z > 12.3 and absf(at.x) < 1.5 and at.y > 7.4 and _player.jump_count > _window_jump_count:
+		crossed_window = true
+
+func _complete_escape() -> void:
+	# Completion may be requested by more than one observer. Preserve terminal
+	# outcomes and forward the first success to the original implementation only.
+	if escape_progress in [EscapeProgress.ESCAPED, EscapeProgress.CAPTURED]:
+		return
+	super()
+
 func _build_world() -> void:
 	super()
 	var props := Placements.instantiate()
