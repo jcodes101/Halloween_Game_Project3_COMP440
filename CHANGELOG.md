@@ -4,6 +4,27 @@ This changelog summarizes changes that can be verified in the repository's commi
 
 ## Unreleased — 2026-10-15
 
+### Current AI and browser-runtime pass — 2026-10-15
+
+#### MAJOR UPDATES
+
+- **More reliable visible-player acquisition and post-QTE escape.** The Familiar confirms unobstructed sight independently of noise suspicion, reacts faster at close range, and now transitions through collision-safe stun, retreat, and recovery after a successful QTE. Configurable sight, retreat, and cooldown tuning lives in `systems/monster/monster_tuning.gd`; behavior and state ownership are in `systems/monster/monster_controller.gd` and `game/integration/main_game.gd`.
+
+#### HIGH PRIORITY UPDATES
+
+- **New Game startup no longer reveals gameplay before instructions.** Gameplay remains hidden until its story/wake-up overlay is ready, then the existing flow proceeds. The main-menu scene handoff is in `game/ui/main_menu.gd`; integration signals are in `game/integration/main_game.gd`.
+- **Main-menu audio now follows browser gesture rules.** The menu reuses the existing exploration track on the Music bus after the first real keyboard or mouse input, then fades it out/in across the opening sequence, gameplay, and return to menu. No autoplay restriction is bypassed and no extra track was added.
+
+#### MEDIUM PRIORITY UPDATES
+
+- **Reduced repeated monster navigation reachability work.** Player-route checks are cached and refreshed on a configurable interval instead of being recomputed every physics frame during sight contact. The build does not claim an overall FPS gain; no before/after frame-rate profile was available.
+- **Local Web build and browser startup were checked.** A fresh Godot 4.7.2 release export completed, the generated files served over local HTTP, and a headless Chrome screenshot showed the title menu and house backdrop. Interactive browser gameplay and audible output were not fully playtested.
+
+#### MINOR UPDATES
+
+- **Regression coverage expanded and stabilized.** Frontend, house, monster, Familiar, and combined integration suites now exercise stationary direct sight, successful QTE retreat, hidden gameplay during New Game setup, and menu audio activation. The legacy handoff assertion waits for the asynchronous controller transition rather than sampling a single fixed frame.
+- **Deployment size record refreshed.** Current local HTML, JS, WASM, and PCK total 85,026,737 bytes (about 81.1 MiB). Export output remains in ignored `web-build/` and is not staged.
+
 ### MAJOR UPDATES
 
 - **Four-level realized house and playable escape route.** Consolidated the existing procedural house with the Kenney house/furniture assets into the active game, preserving the basement, ground floor, second floor, attic, exterior landing, stairs, navigation, hiding spots, progression objects, and escape route. The latest layout pass reorganizes the rear wing and removes redundant upstairs study/reading divisions and duplicated basement laundry props. The design is documented in `game/house/HOUSE_LAYOUT_PLAN.md`; generation and placement live in `game/house/house_builder.gd` and `game/house/house_environment.gd`. The house suite exercises traversal, objects, stairs, hiding, navigation, and escape.

@@ -130,10 +130,12 @@ func _verify_dynamic_music() -> void:
 	var exploration_player: AudioStreamPlayer = players.exploration
 	manager.call("_process", 1.0)
 	_check(manager.active_track_name == "exploration" and exploration_player.playing and exploration_player.volume_db > -60.0, "normal Familiar routine starts looping exploration music and fades it in")
+	var exploration_volume_before: float = exploration_player.volume_db
 	game.monster._change_state(MonsterController.State.STALKING)
-	manager.call("_process", 0.8)
 	var investigation_player: AudioStreamPlayer = players.investigation
-	_check(manager.get("current_mood") == "investigation" and investigation_player.playing and investigation_player.volume_db > exploration_player.volume_db, "actual monster suspicion state selects and crossfades to investigation music")
+	var investigation_volume_before: float = investigation_player.volume_db
+	manager.call("_process", 0.5)
+	_check(manager.get("current_mood") == "investigation" and investigation_player.playing and investigation_player.volume_db > investigation_volume_before and exploration_player.volume_db < exploration_volume_before, "actual monster suspicion state selects investigation music and crossfades both active tracks")
 	game.monster._change_state(MonsterController.State.PURSUING)
 	manager.call("_process", 0.8)
 	var chase_player: AudioStreamPlayer = players.chase
@@ -245,8 +247,14 @@ func _verify_live_capture_qte() -> void:
 		_send_ui_key(ui, code)
 	_check(not bool(ui.get("qte_active")) and not bool(game.monster.encounter_pending) and float(game.monster.encounter_cooldown)>0.0 and float(game.monster.stun_remaining)>0.0 and not bool(game.player.get("_qte_locked")) and bool(game.monster.get("stun_visual_active")), "randomized QTE success triggers visible recoil, restores control and enables recapture protection")
 	var before_recoil: float = game.monster.global_position.distance_to(game.player.global_position)
+	var stun_position: Vector3 = game.monster.global_position
 	game.monster._physics_process(0.25)
 	_check(game.monster.global_position.distance_to(game.player.global_position)>before_recoil and float(game.monster.stun_remaining)<1.0 and absf(game.monster.visual.rotation.x) > 0.01 and game.player.get("_qte_shove_tween") != null, "successful QTE physically staggers and tilts the Familiar while the player's camera reacts")
+	var began_retreat := await _until(func() -> bool: return game.monster.monster_state == MonsterController.State.RETREATING, 3.0)
+	var entered_recovery := await _until(func() -> bool: return game.monster.monster_state == MonsterController.State.RECOVERING, 6.0)
+	_check(began_retreat and entered_recovery and game.monster.global_position.distance_to(stun_position) > 1.0 and game.monster.encounter_cooldown > 0.0, "live QTE success makes the Familiar run along a reachable route before a protected recovery phase")
+	var resumed_after_retreat := await _until(func() -> bool: return game.monster.monster_state not in [MonsterController.State.STUNNED, MonsterController.State.RETREATING, MonsterController.State.RECOVERING], 4.0)
+	_check(resumed_after_retreat and game.monster.encounter_cooldown > 0.0 and not game.capture_started, "retreat recovery returns to search without immediate recapture")
 
 	await _trigger_live_capture_qte(50.0, false)
 	_check(game.monster.encounter_pending and bool(ui.get("qte_active")) and not bool(game.player.flashlight.get("flashlight_is_on")), "live capture at 50 percent with the flashlight off still opens QTE")
@@ -546,6 +554,7 @@ func run(root: Node) -> void:
 	var living_route := NavigationServer3D.map_get_path(game.monster.agent.get_navigation_map(), Vector3(-7,0.05,4), Vector3(-5,0.05,8.7), true)
 	_check(living_route.size() > 1, "expanded living room remains connected through its existing doorway opening")
 	await _verify_batteries()
+	await _verify_visual_handoff()
 	await _verify_house_atmosphere()
 	await _verify_dynamic_music()
 	await _verify_hud_menu_and_input()
@@ -668,6 +677,7 @@ func run(root: Node) -> void:
 			print("HIDE EXIT DIAGNOSTIC ",game.environment._status.text," standing=",game.player._has_standing_clearance()," position=",game.player.global_position)
 			await _reset()
 			_freeze()
+
 	# Resume Monster takeover for the false-exit case.
 	# The false exit is tested separately from the real attic escape.
 	game.environment.interact({"kind":"door","door_id":"false_exit","position":Vector3(0,-2.6,12)})
@@ -702,3 +712,22 @@ func run(root: Node) -> void:
 	game.environment.builder.atmosphere.call("stop_ambience")
 	print("HOUSE CHECKS: ",checks," / failures: ",failures)
 	get_tree().quit(0 if failures==0 else 1)
+
+func _verify_visual_handoff() -> void:
+	# Use an open, connected center-hall sightline in the actual generated house.
+	await _fixture(Vector3(0, 0.05, -1.0))
+	game.monster.reset_controller(Vector3(0, 0.05, 2.5))
+	game.monster.look_at(game.player.global_position)
+	game.monster.set_physics_process(false)
+	game.familiar.set_physics_process(false)
+	game.observation.set_test_suspicion(0.0)
+	await _wait(0.1)
+	var snapshot: MonsterObservation = game.read_monster_observation()
+	var visible: bool = game.monster.can_see_player(snapshot)
+	var registered: bool = game._register_visible_player(snapshot) if visible else false
+	_check(visible and registered and game.observation.suspicion_level >= game.monster.tuning.stalk_threshold, "real unobstructed sightline registers a stationary player and hands off from household behavior without a noise clue")
+	game._physics_process(1.0 / 60.0)
+	game.monster._physics_process(0.2)
+	_check(not game.get("_routine_active") and game.familiar.is_monster_controlled and game.monster.monster_state == MonsterController.State.PURSUING and game.monster.target == game.player, "confirmed visual contact activates the Familiar's real pursuit controller")
+	await _reset()
+	_freeze()

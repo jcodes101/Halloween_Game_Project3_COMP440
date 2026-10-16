@@ -6,6 +6,7 @@ const TYPOGRAPHY = preload("res://game/ui/horror_typography.gd")
 const UI_STYLE = preload("res://game/ui/horror_ui_style.gd")
 const HOUSE_BACKDROP = preload("res://game/ui/menu_house_backdrop.gd")
 const VIGNETTE_SHADER = preload("res://game/ui/cinematic_vignette.gdshader")
+const MENU_MUSIC: AudioStream = preload("res://assets/audio/music/exploration.mp3")
 var settings_path := "user://familiar_settings.cfg"
 const PAPER := Color("e8e0d1")
 const MUTED := Color("aaa397")
@@ -24,6 +25,11 @@ var _active_page := ""
 var _backdrop: SubViewportContainer
 var _body_fade_active := false
 var _content_fade_active := false
+var _menu_music: AudioStreamPlayer
+var _audio_unlocked := false
+var _starting_run := false
+var _audio_hint: Label
+var _menu_music_tween: Tween
 
 func _ready() -> void:
 	name = "MainMenu"
@@ -36,6 +42,7 @@ func _ready() -> void:
 	_ensure_audio_buses()
 	_settings.load(settings_path)
 	_apply_global_settings()
+	_setup_menu_music()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_build_shell()
 	_show_home()
@@ -48,6 +55,10 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	if _game != null:
 		return
+	if event is InputEventKey and event.pressed and not event.echo:
+		_unlock_menu_audio()
+	elif event is InputEventMouseButton and event.pressed:
+		_unlock_menu_audio()
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE and not _active_page.is_empty():
 			_show_home()
@@ -133,6 +144,11 @@ func _build_shell() -> void:
 	footer.add_theme_font_size_override("font_size", 9)
 	footer.add_theme_color_override("font_color", Color("89837a"))
 	_body.add_child(footer)
+	_audio_hint = Label.new()
+	_audio_hint.text = "AUDIO ACTIVATES AFTER YOUR FIRST INPUT"
+	_audio_hint.add_theme_font_size_override("font_size", 8)
+	_audio_hint.add_theme_color_override("font_color", Color("716c65"))
+	_body.add_child(_audio_hint)
 	_layout_shell()
 	resized.connect(_layout_shell)
 	_body.modulate = Color(1.0, 1.0, 1.0, 0.0)
@@ -297,6 +313,56 @@ func _apply_global_settings() -> void:
 	if bool(_settings.get_value("display", "fullscreen", false)):
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 
+func _setup_menu_music() -> void:
+	_menu_music = AudioStreamPlayer.new()
+	_menu_music.name = "MainMenuAtmosphere"
+	_menu_music.bus = "Music"
+	_menu_music.process_mode = Node.PROCESS_MODE_ALWAYS
+	_menu_music.stream = MENU_MUSIC.duplicate() as AudioStream
+	if _menu_music.stream is AudioStreamMP3:
+		(_menu_music.stream as AudioStreamMP3).loop = true
+	_menu_music.volume_db = -60.0
+	add_child(_menu_music)
+
+func _unlock_menu_audio() -> void:
+	if _audio_unlocked:
+		return
+	_audio_unlocked = true
+	if is_instance_valid(_audio_hint):
+		_audio_hint.visible = false
+	if is_instance_valid(_menu_music) and not _starting_run:
+		if _menu_music_tween != null and _menu_music_tween.is_running(): _menu_music_tween.kill()
+		_menu_music.volume_db = -60.0
+		_menu_music.play()
+		_menu_music_tween = create_tween()
+		_menu_music_tween.tween_property(_menu_music, "volume_db", -21.0, 1.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+
+func _fade_menu_music_out() -> void:
+	if not is_instance_valid(_menu_music) or not _menu_music.playing:
+		return
+	if _menu_music_tween != null and _menu_music_tween.is_running(): _menu_music_tween.kill()
+	_menu_music_tween = create_tween()
+	_menu_music_tween.tween_property(_menu_music, "volume_db", -60.0, 1.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_menu_music_tween.tween_callback(_menu_music.stop)
+
+func _fade_menu_music_down() -> void:
+	if not is_instance_valid(_menu_music) or not _menu_music.playing:
+		return
+	if _menu_music_tween != null and _menu_music_tween.is_running(): _menu_music_tween.kill()
+	_menu_music_tween = create_tween()
+	_menu_music_tween.tween_property(_menu_music, "volume_db", -27.0, 0.9).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+
+func _restore_menu_music() -> void:
+	if not _audio_unlocked or not is_instance_valid(_menu_music):
+		return
+	if _menu_music_tween != null and _menu_music_tween.is_running(): _menu_music_tween.kill()
+	if not _menu_music.playing:
+		_menu_music.volume_db = -60.0
+		_menu_music.play()
+	_menu_music.process_mode = Node.PROCESS_MODE_ALWAYS
+	_menu_music_tween = create_tween()
+	_menu_music_tween.tween_property(_menu_music, "volume_db", -21.0, 1.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+
 func _ensure_audio_buses() -> void:
 	for bus in ["Music", "Ambience", "SFX"]:
 		if AudioServer.get_bus_index(bus) >= 0: continue
@@ -316,6 +382,14 @@ func _start_new_game() -> void:
 	_start_run(true)
 
 func _start_run(show_story: bool) -> void:
+	if _starting_run:
+		return
+	_starting_run = true
+	visible = true
+	_main_options.get_parent().visible = true
+	_main_options.visible = false
+	_subtitle.text = "PREPARING YOUR STORY..."
+	_fade_menu_music_down()
 	if _backdrop != null:
 		_backdrop.set_active(false)
 	if is_instance_valid(_game):
@@ -323,11 +397,28 @@ func _start_run(show_story: bool) -> void:
 	_game = GAME_SCENE.instantiate()
 	_game.set("show_story_intro", show_story)
 	_game.set("embedded_in_menu", true)
+	_game.set("visible", false)
 	_game.name = "ActiveGameplayRun"
+	if _game.has_signal("startup_overlay_ready"):
+		_game.connect("startup_overlay_ready", _on_game_startup_overlay_ready.bind(_game))
+	if _game.has_signal("gameplay_started"):
+		_game.connect("gameplay_started", _on_gameplay_started)
 	add_child(_game)
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+func _on_game_startup_overlay_ready(run: Node) -> void:
+	if not is_instance_valid(run) or run != _game or not _starting_run:
+		return
+	run.set("visible", true)
+	_starting_run = false
+	_main_options.visible = true
 	_main_options.get_parent().visible = false
 	visible = false
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+func _on_gameplay_started() -> void:
+	if is_instance_valid(_menu_music):
+		_menu_music.process_mode = Node.PROCESS_MODE_PAUSABLE
+	_fade_menu_music_out()
 
 func restart_embedded_game() -> void:
 	get_tree().paused = false
@@ -347,6 +438,8 @@ func _return_to_menu() -> void:
 	_main_options.get_parent().visible = true
 	_show_home()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_starting_run = false
+	_restore_menu_music()
 
 func _clear_main_options() -> void:
 	for child in _main_options.get_children():

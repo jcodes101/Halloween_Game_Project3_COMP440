@@ -87,6 +87,15 @@ func _player_controls() -> void:
 func _recognition_and_capture() -> void:
 	await _reset()
 	_check(lab.monster.monster_state == MonsterController.State.DISGUISED and lab.monster.target == null, "unaware maintains disguise without a target")
+	await _reset(Vector3(0, 0.05, 7), Vector3(0, 0.05, 3))
+	lab.monster.tuning.chase_speed = 0.0
+	await _wait(0.35)
+	_check(lab.monster.sees_player and lab.monster.player_reachable, "stationary player directly in view is acquired without suspicion or noise")
+	_check(lab.monster.monster_state == MonsterController.State.PURSUING and lab.monster.target == lab.player, "sustained direct sight bypasses the unrelated suspicion threshold and starts pursuit")
+	await _reset()
+	# Isolate the suspicion-stage behavior from the new sustained-sight confirmation.
+	lab.monster.tuning.close_sight_pursuit_distance = 2.0
+	lab.monster.tuning.distant_sight_confirm_seconds = 4.0
 	var before: float = lab.monster.global_position.distance_to(lab.player.global_position)
 	lab.suspicion_level = 50
 	await _wait(0.6)
@@ -130,6 +139,22 @@ func _recognition_and_capture() -> void:
 	await _capture_image("captured_screen")
 	await _reset()
 	_check(lab.outcome.is_empty() and lab.player.movement_enabled and lab.player.camera.current and lab.monster.target == null and not lab.monster.has_last_seen and lab.monster.hidden_still_time == 0 and not lab.monster.basement_reveal_done, "capture restart resets target, memory, timers, camera and controls")
+	await _reset(Vector3(0, 0.05, 7), Vector3(0, 0.05, 4))
+	lab.monster.tuning.qte_stun_seconds = 0.25
+	lab.monster.tuning.qte_retreat_seconds = 0.9
+	lab.monster.tuning.qte_retreat_distance = 4.0
+	lab.monster.tuning.qte_recovery_seconds = 0.25
+	lab.monster.tuning.qte_success_cooldown = 3.0
+	lab.monster.encounter_pending = true
+	var qte_origin: Vector3 = lab.monster.global_position
+	lab.monster.resolve_close_encounter(true)
+	_check(lab.monster.monster_state == MonsterController.State.STUNNED and lab.monster.encounter_cooldown > 0.0, "successful QTE enters a prioritized stun state with recapture protection")
+	var retreated := await _until(func() -> bool: return lab.monster.monster_state == MonsterController.State.RETREATING, 1.5)
+	_check(retreated, "stun transitions into a visible retreat state")
+	var recovered := await _until(func() -> bool: return lab.monster.monster_state == MonsterController.State.RECOVERING, 2.0)
+	_check(recovered and lab.monster.global_position.distance_to(qte_origin) > 1.0 and lab.outcome.is_empty(), "Familiar physically retreats through collision-safe movement before recovery")
+	var resumed_ai := await _until(func() -> bool: return lab.monster.monster_state != MonsterController.State.RECOVERING, 1.0)
+	_check(resumed_ai and lab.monster.monster_state not in [MonsterController.State.STUNNED, MonsterController.State.RETREATING, MonsterController.State.CAPTURED] and lab.monster.encounter_cooldown > 0.0, "recovery resumes AI without immediate recapture")
 
 func read_monster_observation() -> MonsterObservation:
 	return injected_observation

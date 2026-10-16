@@ -216,3 +216,37 @@ The Web preset excludes `design/**`, `docs/**`, and `handoff/**`; `/web-build/` 
 | Live browser gameplay | Not run | No browser runtime or browser automation was available. Do not treat the export or HTTP test as proof that pointer lock, WebGL, audio, or full gameplay work in-browser. |
 
 Godot emitted environment warnings because it could not write its user log files in this sandbox or read the Windows root certificate store. The export and verification commands still returned exit code 0. Neither the local export nor the live site was inspected in a graphical browser, so WebGL rendering, input, audio, and interactive gameplay remain manual checks.
+
+## Follow-up: AI and Web Runtime Reliability — 2026-10-15
+
+This section records the current working-tree follow-up after the previous deployment report. It describes only changes and checks observed in this pass.
+
+### MAJOR — Familiar sight acquisition and escape opportunity
+
+`systems/monster/monster_controller.gd` now accumulates unobstructed visual contact and selects a shorter confirmation interval at close range. Sight confirmation can enter pursuit without requiring a noise/suspicion clue; wall occlusion remains in the ray test. `game/integration/main_game.gd` transfers routine control after confirmed sight and keeps the behavior controllers from repeatedly taking ownership while the monster has a valid threat state. Existing recognition thresholds still govern uncertain or non-visual clues.
+
+After a successful QTE, the Familiar enters `STUNNED`, then `RETREATING`, then `RECOVERING`. Retreat chooses reachable navigation points away from the player; collision-safe movement is the fallback. Existing recapture cooldown and pursuit/recovery states remain authoritative. Tuning is exported in `systems/monster/monster_tuning.gd`.
+
+### HIGH — New Game transition and menu audio activation
+
+`game/ui/main_menu.gd` keeps the gameplay instance hidden while it initializes and only reveals it after `startup_overlay_ready` confirms that the existing instruction/wake-up layer is installed. This avoids showing the house during setup and does not rely on a fixed delay. `game/integration/main_game.gd` emits `gameplay_started` after the opening sequence; menu ambient fades at that point. Embedded-menu startup suppresses gameplay tracks until normal gameplay begins through `game/integration/dynamic_horror_music.gd`.
+
+The menu reuses the existing exploration track on the Music bus after genuine first keyboard or mouse input. This follows browser audio gesture policies without bypassing them. Browser audio playback is requested after interaction in the frontend verification, but audible output was not evaluated in this headless session.
+
+### MEDIUM — Navigation query frequency and Web artifact
+
+Monster/player navigation reachability is refreshed at a configurable 0.3-second interval instead of every physics frame during visual contact. This reduces that specific query frequency by up to 18 times at 60 physics frames per second; no total FPS, frame-time, or memory improvement is claimed because no before/after profiler measurements were available.
+
+A fresh Godot 4.7.2 release export completed at `web-build/`. The four runtime files total 85,026,737 bytes (about 81.1 MiB): HTML 5,444 bytes, JavaScript 279,815 bytes, WASM 39,514,754 bytes, and PCK 45,226,724 bytes. Local HTTP HEAD requests returned 200 for all four files. A headless Chrome run produced a screenshot of the game title menu and house backdrop, which was visually inspected. This validates startup/rendering to the menu in that environment, not full gameplay, pointer lock, audible sound, or live Pages content after this update.
+
+### MINOR — Regression timing and verification
+
+`tests/integration/verify_game.gd` waits up to one second for the routine/monster controller handoff to settle instead of checking one fixed 0.3-second sample. This addresses a timing-sensitive assertion without removing its expected state checks. Verification runs in this pass: frontend 37/37; four-floor house 161/161; monster 57/57; Familiar behavior 79/79; combined legacy integration 25/25; normal headless main-menu startup exit 0; production Web export exit 0. Godot printed sandbox log-directory and Windows certificate-store warnings; these did not fail the runs. Some suites also print resource/ObjectDB cleanup warnings after successful assertions.
+
+### Remaining limitations
+
+- Full browser keyboard/mouse play from New Game through a chase, QTE, and ending was not executed. Headless Chrome rendered the main menu, but DevTools console capture and an interactive input run remain unverified.
+- Audible sound quality and Chrome audio-device output cannot be confirmed by these headless checks. The input-gesture activation path is covered by the frontend suite.
+- No quantitative FPS, frame-time, or memory profile or comparison was obtained. The navigation-query change is a code-level reduction only.
+- GitHub Pages for this follow-up has not yet completed; deployment must be verified after the update is pushed to `main`.
+- Nine modified `design/house/*.png` preview images are pre-existing local test captures. They are preserved in the working tree and excluded from this commit.

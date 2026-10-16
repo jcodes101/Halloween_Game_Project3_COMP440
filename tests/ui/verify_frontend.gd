@@ -44,6 +44,10 @@ func run(menu: Node) -> void:
 		if node is Button and node.text == "CONTINUE":
 			continue_disabled = node.disabled and not node.tooltip_text.is_empty()
 	_check(menu.get("_game") == null and continue_disabled, "main menu is shown before gameplay and Continue explains that progress saves are unavailable")
+	var menu_music: AudioStreamPlayer = menu.get("_menu_music")
+	_check(menu_music != null and menu_music.stream is AudioStreamMP3 and menu_music.bus == "Music", "main menu assigns the existing exploration track to the Music bus")
+	menu.call("_unlock_menu_audio")
+	_check(menu_music.playing and bool(menu.get("_audio_unlocked")), "first player input activates menu music through the browser gesture path")
 	var backdrop := menu.get("_backdrop") as SubViewportContainer
 	var rendered_house: Node = backdrop.get_node_or_null("HouseRender/MenuHouse") if backdrop != null else null
 	var menu_camera: Node = backdrop.get_node_or_null("HouseRender/MenuCamera") if backdrop != null else null
@@ -88,6 +92,8 @@ func run(menu: Node) -> void:
 		if node is Button and node.text == "NEW GAME":
 			node.pressed.emit()
 			break
+	var initializing_run: Node = menu.get("_game")
+	_check(is_instance_valid(initializing_run) and not bool(initializing_run.get("visible")) and menu.visible, "New Game keeps gameplay hidden and the menu visible while the world and instructions initialize")
 	var loaded := await _wait_for(func() -> bool:
 		var current: Node = menu.get("_game")
 		return is_instance_valid(current) and current.get("navigation_is_ready") and current.game_ui.get("intro_active")
@@ -97,6 +103,7 @@ func run(menu: Node) -> void:
 		get_tree().quit(1)
 		return
 	var game: Node = menu.get("_game")
+	_check(game.visible and not menu.visible and not game.music_manager.get("gameplay_enabled") and not game.music_manager.get("active_track_name"), "story instructions are the first visible run layer and gameplay music waits for the opening sequence")
 	var environment: Node = game.environment
 	_check(environment.get("player_location") == "your_room" and environment.objective_text() == "Leave your bedroom.", "new-game spawn and initial objective place the player in their bedroom")
 	_check(not bool(environment.builder.doors.player_bedroom.open) and int(environment.builder.doors.player_bedroom.body.collision_layer) == 8, "bedroom door starts closed with blocking collision")
@@ -114,6 +121,7 @@ func run(menu: Node) -> void:
 	await get_tree().process_frame
 	var settled_camera: Camera3D = game.player.get_node("PlayerCamera")
 	_check(not get_tree().paused and not bool(game.player.get("_qte_locked")) and game.familiar.is_physics_processing() and settled_camera.position.is_equal_approx(Vector3(0,1.05,0)) and settled_camera.rotation.is_equal_approx(Vector3.ZERO), "skipping wake-up restores the standing camera, gameplay, and Familiar exactly once")
+	_check(game.music_manager.get("gameplay_enabled") and game.music_manager.get("active_track_name") == "exploration", "exploration music starts after the introduction and wake-up")
 	var player_door: Dictionary = environment.builder.doors.player_bedroom
 	environment.call("_set_room_door", "player_bedroom", true)
 	_check(bool(player_door.open) and int(player_door.body.collision_layer) == 0, "E door action opens the bedroom leaf and clears its collision")

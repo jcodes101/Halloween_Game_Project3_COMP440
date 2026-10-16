@@ -1,7 +1,7 @@
 class_name MonsterController
 extends CharacterBody3D
 ## Threat decisions only. Does not write suspicion, clues, doors, or hiding state.
-enum State { DISGUISED, STALKING, PURSUING, SEARCHING, LOST_TARGET, INTERCEPTING, REVEALING, CAPTURED }
+enum State { DISGUISED, STALKING, PURSUING, SEARCHING, LOST_TARGET, INTERCEPTING, REVEALING, STUNNED, RETREATING, RECOVERING, CAPTURED }
 
 signal state_changed(previous: State, current: State)
 signal capture_requested(monster: Node3D)
@@ -48,11 +48,22 @@ var encounter_cooldown := 0.0
 var stun_remaining := 0.0
 var last_heard_position := Vector3.ZERO
 var _path_refresh_timer := 0.0
+var _reachability_refresh_timer := 0.0
+var _visual_contact_seconds := 0.0
+var _player_navigation_position := Vector3.ZERO
+var _retreat_elapsed := 0.0
+var _retreat_distance := 0.0
+var _retreat_origin := Vector3.ZERO
+var _retreat_destination := Vector3.ZERO
+var _retreat_has_navigation_target := false
+var _retreat_fallback_direction := Vector3.ZERO
+var _recovery_remaining := 0.0
 var _search_rng := RandomNumberGenerator.new()
 var _stun_pose_elapsed := 0.0
 var _stun_visual_base_position := Vector3.ZERO
 var _stun_visual_base_rotation := Vector3.ZERO
 var stun_visual_active := false
+var pursuit_debug_reason := "Routine"
 
 func _ready() -> void:
 	if tuning == null:
@@ -144,17 +155,36 @@ func _physics_process(delta: float) -> void:
 		return
 	encounter_cooldown = maxf(0.0, encounter_cooldown - delta)
 	_path_refresh_timer = maxf(0.0, _path_refresh_timer - delta)
+	_reachability_refresh_timer = maxf(0.0, _reachability_refresh_timer - delta)
 	if encounter_pending:
+		pursuit_debug_reason = "Capture QTE active"
 		_stop(delta)
 		return
-	if stun_remaining > 0.0:
+	if monster_state == State.STUNNED:
 		_update_stun_visual(delta)
 		_stagger_away_from_player(delta)
+		if stun_remaining <= 0.0:
+			_begin_retreat()
+		return
+	if monster_state == State.RETREATING:
+		_process_retreat(delta)
+		return
+	if monster_state == State.RECOVERING:
+		_process_recovery(delta)
 		return
 	if stun_visual_active:
 		_restore_stun_visual()
 	sees_player = can_see_player(observation)
-	player_reachable = sees_player and point_reachable(observation.player_location)
+	if sees_player:
+		_visual_contact_seconds += delta
+		if _reachability_refresh_timer <= 0.0:
+			_player_navigation_position = NavigationServer3D.map_get_closest_point(agent.get_navigation_map(), observation.player_location) if navigation_ready() else observation.player_location
+			player_reachable = navigation_ready() and point_reachable(_player_navigation_position)
+			_reachability_refresh_timer = tuning.reachability_refresh_seconds
+	else:
+		_visual_contact_seconds = 0.0
+		player_reachable = false
+		_reachability_refresh_timer = 0.0
 	if observation.is_hidden and not _was_hidden and (_was_visible or sees_player):
 		knows_hiding_place = true
 		_known_hide_position = observation.hiding_check_position
@@ -177,7 +207,9 @@ func _physics_process(delta: float) -> void:
 		cue_requested.emit("[Footsteps approaching]" if monster_state in [State.PURSUING, State.INTERCEPTING] else "[Measured footsteps]")
 
 func _handle_threat(observation: MonsterObservation, delta: float) -> void:
-	var recognition := 2 if basement_reveal_done else 1 if observation.suspicion_level >= tuning.stalk_threshold else 0
+	var sight_threshold := tuning.close_sight_confirm_seconds if _flat_distance(global_position, observation.player_location) <= tuning.close_sight_pursuit_distance else tuning.distant_sight_confirm_seconds
+	var confirmed_visual_contact := sees_player and _visual_contact_seconds >= sight_threshold
+	var recognition := 2 if basement_reveal_done or confirmed_visual_contact else 1 if observation.suspicion_level >= tuning.stalk_threshold else 0
 	if observation.suspicion_level >= tuning.pursue_threshold:
 		recognition = 2
 	if recognition == 0:
@@ -186,6 +218,7 @@ func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 		has_last_seen = false
 		hidden_still_time = 0.0
 		_set_appearance("Ordinary")
+		pursuit_debug_reason = "No current suspicion or confirmed sight"
 		_stop(delta)
 		return
 	_set_appearance("Revealed" if basement_reveal_done else "Uncanny" if recognition == 2 else "Doubtful")
@@ -204,7 +237,8 @@ func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 		has_last_seen = true
 		hidden_still_time = 0.0
 		if player_reachable:
-			if recognition == 2:
+			if recognition == 2 or confirmed_visual_contact:
+				pursuit_debug_reason = "Visible player confirmed" if confirmed_visual_contact else "Awareness reached pursuit threshold"
 				_change_state(State.PURSUING)
 				if _flat_distance(global_position, observation.player_location) <= tuning.capture_distance:
 					if encounter_cooldown <= 0.0:
@@ -212,12 +246,13 @@ func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 					else:
 						_stop(delta)
 					return
-				_walk_to(observation.player_location, tuning.chase_speed, delta)
+				_walk_to(_player_navigation_position, tuning.chase_speed, delta)
 			else:
+				pursuit_debug_reason = "Visible; confirming sight"
 				_change_state(State.STALKING)
 				var distance := _flat_distance(global_position, observation.player_location)
 				if distance > tuning.stalk_distance + 0.25:
-					_walk_to(observation.player_location, tuning.stalk_speed, delta)
+					_walk_to(_player_navigation_position, tuning.stalk_speed, delta)
 				elif distance < tuning.stalk_distance * 0.65:
 					var away := (global_position - observation.player_location).normalized()
 					_walk_to(global_position + away * 1.5, tuning.stalk_speed, delta)
@@ -225,7 +260,10 @@ func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 					_face(observation.player_location, delta)
 					_stop(delta)
 			return
+		pursuit_debug_reason = "Player visible but no connected navigation route"
 	if has_last_seen:
+		if not sees_player:
+			pursuit_debug_reason = "Searching last confirmed position"
 		if monster_state != State.SEARCHING or _search_points.is_empty():
 			_begin_search()
 		if observation.is_hidden and observation.player_is_still and not sees_player:
@@ -238,6 +276,7 @@ func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 			return
 		_search(delta)
 	else:
+		pursuit_debug_reason = "No player sighting or credible clue"
 		_change_state(State.LOST_TARGET)
 		if retreat_anchor != null:
 			_walk_to(retreat_anchor.global_position, tuning.stalk_speed, delta)
@@ -367,7 +406,8 @@ func _stop(delta: float) -> void:
 	_set_visual_motion(false)
 
 func _capture() -> void:
-	if monster_state == State.CAPTURED:
+	if monster_state in [State.STUNNED, State.RETREATING, State.RECOVERING, State.CAPTURED] or encounter_cooldown > 0.0:
+		pursuit_debug_reason = "Capture blocked by QTE recovery protection"
 		return
 	encounter_pending = false
 	stun_remaining = 0.0
@@ -378,7 +418,8 @@ func _capture() -> void:
 	capture_requested.emit(self)
 
 func _try_close_encounter() -> void:
-	if encounter_cooldown > 0.0 or encounter_pending or monster_state == State.CAPTURED:
+	if encounter_cooldown > 0.0 or encounter_pending or monster_state in [State.STUNNED, State.RETREATING, State.RECOVERING, State.CAPTURED]:
+		pursuit_debug_reason = "Capture blocked by encounter cooldown or recovery"
 		return
 	# Every physical close encounter uses the same QTE path, regardless of the
 	# player's flashlight charge or whether its beam is currently on.
@@ -394,17 +435,19 @@ func resolve_close_encounter(escaped: bool) -> void:
 	if not escaped:
 		_capture()
 		return
-	encounter_cooldown = tuning.qte_success_cooldown
+	encounter_cooldown = maxf(tuning.qte_success_cooldown, tuning.qte_stun_seconds + tuning.qte_retreat_seconds + tuning.qte_recovery_seconds)
 	stun_remaining = tuning.qte_stun_seconds
 	_begin_stun_reaction()
 	last_seen_position = player_actor.global_position if is_instance_valid(player_actor) else global_position
 	has_last_seen = true
 	target = null
-	_change_state(State.SEARCHING)
-	cue_requested.emit("[She recoils. Run or hide while she recovers]")
+	_visual_contact_seconds = 0.0
+	_reachability_refresh_timer = 0.0
+	pursuit_debug_reason = "Successful QTE; stunned before retreat"
+	_change_state(State.STUNNED)
+	cue_requested.emit("[She reels backward. She is stunned]")
 
 func _stagger_away_from_player(delta: float) -> void:
-	stun_remaining = maxf(0.0, stun_remaining - delta)
 	var away := Vector3.FORWARD
 	if is_instance_valid(player_actor):
 		away = global_position - player_actor.global_position
@@ -417,7 +460,95 @@ func _stagger_away_from_player(delta: float) -> void:
 	velocity.y = -0.5 if is_on_floor() else velocity.y - 9.8 * delta
 	move_and_slide()
 	_face(global_position + away, delta)
+	_set_visual_motion(Vector2(velocity.x, velocity.z).length() > 0.1)
+	stun_remaining = maxf(0.0, stun_remaining - delta)
+
+func _begin_retreat() -> void:
+	_restore_stun_visual()
+	_retreat_elapsed = 0.0
+	_retreat_distance = tuning.qte_retreat_distance
+	_retreat_origin = global_position
+	_retreat_destination = _choose_retreat_destination()
+	_retreat_has_navigation_target = not _retreat_destination.is_equal_approx(global_position)
+	_retreat_fallback_direction = _away_from_player()
+	_path_refresh_timer = 0.0
+	if _retreat_has_navigation_target:
+		pursuit_debug_reason = "Retreating along reachable navigation path"
+	else:
+		pursuit_debug_reason = "No retreat route; collision-safe fallback movement"
+	_change_state(State.RETREATING)
+	cue_requested.emit("[She turns and runs down the hall]")
+
+func _choose_retreat_destination() -> Vector3:
+	if not navigation_ready():
+		return global_position
+	var away := _away_from_player()
+	var angles: Array[float] = [0.0, deg_to_rad(35.0), -deg_to_rad(35.0), deg_to_rad(70.0), -deg_to_rad(70.0), PI]
+	var best := global_position
+	var best_score := -INF
+	var map := agent.get_navigation_map()
+	for angle in angles:
+		var direction := away.rotated(Vector3.UP, angle).normalized()
+		var requested := global_position + direction * tuning.qte_retreat_distance
+		var candidate := NavigationServer3D.map_get_closest_point(map, requested)
+		var flat_distance := _flat_distance(global_position, candidate)
+		if flat_distance < minf(2.0, tuning.qte_retreat_distance * 0.35):
+			continue
+		var route := NavigationServer3D.map_get_path(map, global_position, candidate, true)
+		if route.is_empty() or route[-1].distance_to(candidate) > 0.8:
+			continue
+		var alignment := Vector2(candidate.x - global_position.x, candidate.z - global_position.z).normalized().dot(Vector2(away.x, away.z).normalized())
+		if alignment < -0.1:
+			continue
+		var score := flat_distance + alignment * tuning.qte_retreat_distance * 0.5
+		if score > best_score:
+			best_score = score
+			best = candidate
+	return best
+
+func _away_from_player() -> Vector3:
+	var away := Vector3.FORWARD
+	if is_instance_valid(player_actor):
+		away = global_position - player_actor.global_position
+	away.y = 0.0
+	if away.length_squared() < 0.001:
+		away = global_basis.z
+	return away.normalized()
+
+func _process_retreat(delta: float) -> void:
+	_retreat_elapsed += delta
+	if _retreat_has_navigation_target:
+		_walk_to(_retreat_destination, tuning.qte_retreat_speed, delta)
+	else:
+		velocity.x = move_toward(velocity.x, _retreat_fallback_direction.x * tuning.qte_retreat_speed, tuning.acceleration * delta)
+		velocity.z = move_toward(velocity.z, _retreat_fallback_direction.z * tuning.qte_retreat_speed, tuning.acceleration * delta)
+		velocity.y = -0.5 if is_on_floor() else velocity.y - 9.8 * delta
+		_face(global_position + _retreat_fallback_direction, delta)
+		move_and_slide()
+		_set_visual_motion(Vector2(velocity.x, velocity.z).length() > 0.1)
+	var traveled := _flat_distance(global_position, _retreat_origin)
+	var arrived := _retreat_has_navigation_target and _flat_distance(global_position, _retreat_destination) <= tuning.arrival_distance
+	if arrived or traveled >= tuning.qte_retreat_distance * 0.8 or _retreat_elapsed >= tuning.qte_retreat_seconds:
+		_begin_recovery()
+
+func _begin_recovery() -> void:
+	_recovery_remaining = tuning.qte_recovery_seconds
+	velocity.x = 0.0
+	velocity.z = 0.0
+	_change_state(State.RECOVERING)
+	pursuit_debug_reason = "Recovering after QTE retreat"
 	_set_visual_motion(false)
+
+func _process_recovery(delta: float) -> void:
+	_stop(delta)
+	_recovery_remaining = maxf(0.0, _recovery_remaining - delta)
+	if _recovery_remaining > 0.0:
+		return
+	if has_last_seen:
+		_begin_search()
+	else:
+		_change_state(State.LOST_TARGET)
+	pursuit_debug_reason = "Recovery complete; resuming search"
 
 func _begin_stun_reaction() -> void:
 	if not is_instance_valid(visual):
@@ -513,6 +644,14 @@ func reset_controller(position: Vector3) -> void:
 	encounter_pending = false
 	encounter_cooldown = 0.0
 	stun_remaining = 0.0
+	_recovery_remaining = 0.0
+	_retreat_elapsed = 0.0
+	_retreat_destination = position
+	_retreat_has_navigation_target = false
+	_visual_contact_seconds = 0.0
+	_reachability_refresh_timer = 0.0
+	_player_navigation_position = position
+	pursuit_debug_reason = "Routine"
 	stun_visual_active = false
 	_stun_pose_elapsed = 0.0
 	_path_refresh_timer = 0.0

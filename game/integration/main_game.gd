@@ -1,5 +1,7 @@
 extends Node3D
 ## Scene-local integration. Each system remains the writer of its own state.
+signal startup_overlay_ready
+signal gameplay_started
 var environment: Node3D
 var player: CharacterBody3D
 var monster: MonsterController
@@ -35,6 +37,7 @@ var _perception_scan_timer := 0.0
 var _simulation_test_mode := false
 var _opening_sequence_active := false
 var _door_scan_timer := 0.0
+var _startup_overlay_emitted := false
 @export var environment_scene: PackedScene = preload("res://game/environment/escape_environment.tscn")
 var house_mode := false
 
@@ -47,6 +50,8 @@ func _ready() -> void:
 	_simulation_test_mode = "--verify-game" in args or "--verify-house" in args or "--verify-monster" in args
 	_opening_sequence_active = not _simulation_test_mode
 	debug_enabled = debug_enabled or "--debug-gameplay" in args or "--verify-game" in args or "--verify-house" in args
+	if OS.has_feature("web"):
+		debug_enabled = false
 	environment = environment_scene.instantiate()
 	environment.interception_gate = self
 	add_child(environment)
@@ -84,6 +89,11 @@ func _ready() -> void:
 		familiar.force_next_station()
 	if debug_enabled:
 		_caption("Development debug enabled. 1 / 2 / 3 change suspicion.")
+	if embedded_in_menu:
+		game_ui.visible = true
+		var vhs_layer := vhs_effect.get_node_or_null("VHSOverlayLayer")
+		if vhs_layer is CanvasLayer:
+			vhs_layer.visible = true
 	if not _simulation_test_mode:
 		game_ui.connect("wake_up_requested", _begin_wake_up)
 		game_ui.connect("wake_up_finished", _finish_wake_up)
@@ -94,6 +104,8 @@ func _ready() -> void:
 				_begin_wake_up()
 		else:
 			_begin_wake_up()
+		startup_overlay_ready.emit()
+		_startup_overlay_emitted = true
 	if "--verify-game" in OS.get_cmdline_user_args() and not get_tree().root.has_node("GameVerification"):
 		var suite := preload("res://tests/integration/verify_game.gd").new()
 		suite.name = "GameVerification"
@@ -243,8 +255,13 @@ func _build_hud() -> void:
 	music_manager = preload("res://game/integration/dynamic_horror_music.gd").new()
 	music_manager.name = "DynamicHorrorMusic"
 	add_child(music_manager)
-	music_manager.call("setup", monster, exploration_music_track, investigation_music_track, chase_music_track)
+	music_manager.call("setup", monster, exploration_music_track, investigation_music_track, chase_music_track, not embedded_in_menu)
 	game_ui.connect("survival_qte_started", music_manager.play_qte_sting)
+	if embedded_in_menu:
+		game_ui.visible = false
+		var vhs_layer := vhs_effect.get_node_or_null("VHSOverlayLayer")
+		if vhs_layer is CanvasLayer:
+			vhs_layer.visible = false
 	battery_label = game_ui.get_node_or_null("SharedGameUI")
 	debug_label = game_ui.get("debug_label")
 	shadow = MeshInstance3D.new()
@@ -272,7 +289,7 @@ func _physics_process(delta: float) -> void:
 	if not navigation_is_ready or _opening_sequence_active:
 		return
 	if music_manager != null:
-		var threat_states := [MonsterController.State.SEARCHING, MonsterController.State.LOST_TARGET, MonsterController.State.INTERCEPTING, MonsterController.State.PURSUING]
+		var threat_states := [MonsterController.State.SEARCHING, MonsterController.State.LOST_TARGET, MonsterController.State.INTERCEPTING, MonsterController.State.PURSUING, MonsterController.State.RETREATING, MonsterController.State.RECOVERING, MonsterController.State.STUNNED]
 		var threat_nearby: bool = monster.monster_state in threat_states and monster.global_position.distance_to(player.global_position) <= music_manager.hiding_threat_distance
 		music_manager.set_hiding_context(environment.is_hidden, threat_nearby)
 	var terminal: bool = environment.escape_progress in [environment.EscapeProgress.ESCAPED, environment.EscapeProgress.CAPTURED]
@@ -280,7 +297,8 @@ func _physics_process(delta: float) -> void:
 		return
 	_update_player_perception(delta)
 	_update_monster_doors(delta)
-	var should_routine: bool = observation.suspicion_level < monster.tuning.stalk_threshold and environment.escape_progress == environment.EscapeProgress.FIND_KEY
+	var threat_is_owned := monster.monster_state not in [MonsterController.State.DISGUISED, MonsterController.State.LOST_TARGET] or (monster.monster_state == MonsterController.State.LOST_TARGET and monster.has_last_seen)
+	var should_routine: bool = observation.suspicion_level < monster.tuning.stalk_threshold and environment.escape_progress == environment.EscapeProgress.FIND_KEY and not threat_is_owned and monster.encounter_cooldown <= 0.0
 	if should_routine != _routine_active:
 		_routine_active = should_routine
 		if should_routine:
@@ -298,10 +316,10 @@ func _physics_process(delta: float) -> void:
 	audio.footstep(player, "player_step", not environment.is_hidden and not player.is_transitioning())
 	audio.footstep(monster, "mother_step", true)
 	if debug_enabled and debug_label != null:
-		debug_label.text = "Temporary suspicion: %.0f | Familiar: %s | Mother: %s\n1 normal / 2 doubtful / 3 certain" % [observation.suspicion_level, familiar.current_action, "Household routine" if _routine_active else monster.state_name()]
+		debug_label.text = "Suspicion %.0f | Familiar: %s | AI: %s\nVisible: %s | confidence %.2f | Last known: %s\nNav target: %s | Capture: %s | %s\n1 normal / 2 doubtful / 3 certain" % [observation.suspicion_level, familiar.current_action, "Household routine" if _routine_active else monster.state_name(), str(monster.sees_player), monster._visual_contact_seconds, str(monster.last_seen_position if monster.has_last_seen else Vector3.ZERO), str(monster.destination), str(monster.encounter_cooldown <= 0.0 and monster.monster_state not in [MonsterController.State.STUNNED, MonsterController.State.RETREATING, MonsterController.State.RECOVERING]), monster.pursuit_debug_reason]
 
 func _update_monster_doors(delta: float) -> void:
-	if not house_mode or monster.monster_state not in [MonsterController.State.PURSUING, MonsterController.State.SEARCHING, MonsterController.State.LOST_TARGET, MonsterController.State.INTERCEPTING, MonsterController.State.REVEALING]:
+	if not house_mode or monster.monster_state not in [MonsterController.State.PURSUING, MonsterController.State.SEARCHING, MonsterController.State.LOST_TARGET, MonsterController.State.INTERCEPTING, MonsterController.State.REVEALING, MonsterController.State.RETREATING]:
 		return
 	_door_scan_timer -= delta
 	if _door_scan_timer > 0.0:
@@ -326,6 +344,8 @@ func _begin_wake_up() -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		familiar.set_physics_process(true)
 		familiar.force_next_station()
+		if music_manager != null:
+			music_manager.call("set_gameplay_enabled", true)
 		return
 	get_tree().paused = true
 	player.set_qte_locked(true)
@@ -345,6 +365,9 @@ func _finish_wake_up() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	familiar.set_physics_process(true)
 	familiar.force_next_station()
+	if music_manager != null:
+		music_manager.call("set_gameplay_enabled", true)
+	gameplay_started.emit()
 
 func _handle_restart_requested() -> void:
 	if embedded_in_menu and get_parent().has_method("restart_embedded_game"):
@@ -380,7 +403,7 @@ func _update_player_perception(delta: float) -> void:
 	var sense_delta := _perception_scan_timer
 	_perception_scan_timer = 0.0
 	var snapshot := read_monster_observation()
-	if not environment.is_hidden and monster.can_see_player(snapshot):
+	if _register_visible_player(snapshot):
 		var gain := 2.5
 		if player.is_moving(): gain += 4.0
 		var flashlight: Node = player.flashlight
@@ -390,6 +413,14 @@ func _update_player_perception(delta: float) -> void:
 	elif observation.suspicion_level > 0.0:
 		var decay_rate := 8.0 if environment.is_hidden or monster.monster_state == MonsterController.State.LOST_TARGET else 2.2
 		observation.set_test_suspicion(maxf(0.0, observation.suspicion_level - decay_rate * sense_delta))
+
+func _register_visible_player(snapshot: MonsterObservation) -> bool:
+	if environment.is_hidden or not monster.can_see_player(snapshot):
+		return false
+	# An unobstructed sighting transfers control from the household routine
+	# immediately; sound or player movement is not required for visual acquisition.
+	observation.set_test_suspicion(maxf(observation.suspicion_level, monster.tuning.stalk_threshold + 0.01))
+	return true
 
 func _flashlight_aimed_at_monster() -> bool:
 	var camera := player.get_node_or_null("PlayerCamera") as Camera3D

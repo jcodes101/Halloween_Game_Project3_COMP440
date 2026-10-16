@@ -117,6 +117,26 @@ For the local source revision audited on 2026-10-15:
 
 Godot also reported that this sandbox could not write its per-user `user://logs` directory and could not read the Windows root certificate store. These environment warnings did not cause the listed validation commands to fail. The monster navigation bake reports agent-size rounding warnings. The integration and house test harnesses reported ObjectDB/resource shutdown warnings after all assertions passed.
 
+## Follow-up validation — 2026-10-15
+
+The current working-tree build was exported locally with Godot 4.7.2 using the `Web` release preset. The preset remains on the Compatibility renderer with web threads disabled. The export succeeded and produced:
+
+| File | Size |
+| --- | ---: |
+| `index.html` | 5,444 bytes |
+| `index.js` | 279,815 bytes |
+| `index.wasm` | 39,514,754 bytes |
+| `index.pck` | 45,226,724 bytes |
+| **Total** | **85,026,737 bytes (~81.1 MiB)** |
+
+The four core files were served from a local HTTP server and each returned HTTP 200. Headless Chrome then loaded the local export and rendered a screenshot of the title menu and house backdrop; that screenshot was inspected. This confirms that the loader, WebAssembly runtime, project pack, and startup scene reached the main menu under this local Chrome/WebGL setup. It does not prove a complete interactive run.
+
+The first sandboxed headless Chrome attempts could not start the browser GPU process. A subsequent local Chrome run outside that restricted process context rendered the title menu successfully. The browser's full console log was not captured, and no click-through gameplay, mouse pointer-lock, audible output, or in-browser chase/QTE/ending was completed. The frontend automated suite does check that menu music starts only after real first input, but audible playback still needs a manual Chrome check.
+
+Refreshed verification results for this source revision: frontend 37 checks, house 161 checks, monster 57 assertions, Familiar 79 checks, and legacy integration 25 checks, all with zero failures. A normal headless main-menu launch and production Web export both exited successfully. The runs emitted sandbox user-log and Windows certificate-store warnings; these did not fail export or tests.
+
+This follow-up has not yet been deployed to GitHub Pages. The existing workflow deploys after the verified changes land on `main`; after that workflow completes, recheck the Actions run and live page before treating this revision as publicly deployed. The total listed above is a local uncompressed file-size sum, not measured download time, transferred bytes, browser memory, or FPS.
+
 ## Official references
 
 - [Godot 4.7 exporting projects](https://docs.godotengine.org/en/4.7/tutorials/export/exporting_projects.html)

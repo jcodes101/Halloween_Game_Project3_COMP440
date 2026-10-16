@@ -29,9 +29,11 @@ var _active_player: AudioStreamPlayer
 var _cue_player: AudioStreamPlayer
 var _hiding_requested := false
 var _ending_locked := false
+var gameplay_enabled := true
 
-func setup(monster_node: Node, exploration: AudioStream = null, investigation: AudioStream = null, chase: AudioStream = null) -> void:
+func setup(monster_node: Node, exploration: AudioStream = null, investigation: AudioStream = null, chase: AudioStream = null, enable_gameplay_music := true) -> void:
 	monster = monster_node
+	gameplay_enabled = enable_gameplay_music
 	process_mode = Node.PROCESS_MODE_PAUSABLE
 	_discover_tracks()
 	# Explicitly assigned legacy tracks remain supported and take precedence.
@@ -124,13 +126,17 @@ func set_monster_state(state: int) -> void:
 		mood = "silence"
 	elif state == MonsterController.State.PURSUING:
 		mood = "chase"
-	elif state in [MonsterController.State.STALKING, MonsterController.State.SEARCHING, MonsterController.State.LOST_TARGET, MonsterController.State.INTERCEPTING, MonsterController.State.REVEALING]:
+	elif state in [MonsterController.State.STALKING, MonsterController.State.SEARCHING, MonsterController.State.LOST_TARGET, MonsterController.State.INTERCEPTING, MonsterController.State.REVEALING, MonsterController.State.STUNNED, MonsterController.State.RETREATING, MonsterController.State.RECOVERING]:
 		mood = "investigation"
 	current_mood = mood
 	_select_gameplay_music()
 
 func set_hiding_context(is_hidden: bool, threat_nearby: bool) -> void:
 	_hiding_requested = is_hidden and threat_nearby
+	_select_gameplay_music()
+
+func set_gameplay_enabled(enabled: bool) -> void:
+	gameplay_enabled = enabled
 	_select_gameplay_music()
 
 func play_qte_sting() -> void:
@@ -163,7 +169,7 @@ func has_track_for_state(state: int) -> bool:
 	var mood := "exploration"
 	if state == MonsterController.State.CAPTURED: return false
 	if state == MonsterController.State.PURSUING: mood = "chase"
-	elif state in [MonsterController.State.STALKING, MonsterController.State.SEARCHING, MonsterController.State.LOST_TARGET, MonsterController.State.INTERCEPTING, MonsterController.State.REVEALING]: mood = "investigation"
+	elif state in [MonsterController.State.STALKING, MonsterController.State.SEARCHING, MonsterController.State.LOST_TARGET, MonsterController.State.INTERCEPTING, MonsterController.State.REVEALING, MonsterController.State.STUNNED, MonsterController.State.RETREATING, MonsterController.State.RECOVERING]: mood = "investigation"
 	return _track_for_mood(mood) != null
 
 func has_asset(stem: String) -> bool:
@@ -188,7 +194,7 @@ func _set_player_stream(mood: String, stream: AudioStream) -> void:
 	player.volume_db = SILENT_DB
 
 func _select_gameplay_music() -> void:
-	if _ending_locked:
+	if _ending_locked or not gameplay_enabled:
 		_active_player = null
 		active_track_name = ""
 		return
