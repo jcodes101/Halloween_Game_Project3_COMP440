@@ -51,36 +51,65 @@ func run(root: Node) -> void:
 	game.familiar.greeting_distance = 0
 	await _wait(0.8)
 	_check(game.monster.global_position.distance_to(origin) > 0.3 and not game.monster.is_physics_processing(), "Familiar routines move the shared body without duplicate movement")
-	_key(KEY_2, true)
-	_key(KEY_2, false)
-	await _wait(0.3)
-	var alertness_handoff: bool = game.observation.suspicion_level == 50 and game.familiar.behavior_stage == 1 and game.familiar.is_monster_controlled and game.monster.is_physics_processing()
+	# The movement/routine checks above can leave the actors close together.
+	# Install safe geometry BEFORE alertness enables Monster physics: otherwise
+	# a random routine destination can trigger a QTE during the old 0.3s wait.
+	await _reset()
+	game.familiar.greeting_distance = 0
 	# Keep a real, unobstructed sighting stable without reaching capture range.
 	# Only this fixture's tuning is changed; subsequent cases reload the scene.
 	game.monster.tuning = game.monster.tuning.duplicate()
 	game.monster.tuning.stalk_speed = 0
 	game.monster.tuning.chase_speed = 0
 	game.player.global_position = Vector3(0, 0.05, 7)
+	game.player.velocity = Vector3.ZERO
 	game.monster.global_position = Vector3(0, 0.05, 3)
 	game.monster.velocity = Vector3.ZERO
 	game.monster.look_at(Vector3(0, 0.05, 7))
+	_key(KEY_2, true)
+	_key(KEY_2, false)
+	await _until(func() -> bool: return game.familiar.is_monster_controlled and game.monster.is_physics_processing(), 0.3)
+	_check(game.observation.suspicion_level == 50, "approved alertness input sets 50")
+	_check(game.familiar.behavior_stage == 1, "approved alertness sets Familiar doubtful stage")
+	_check(game.familiar.is_monster_controlled, "approved alertness hands Familiar control to Monster")
+	_check(game.monster.is_physics_processing(), "approved alertness enables Monster physics")
+	_check(not game._routine_active, "approved alertness suspends routine")
 	var visual_pursuit := await _until(func() -> bool: return game.monster.sees_player and game.monster._visual_contact_seconds >= game.monster.tuning.distant_sight_confirm_seconds and game.monster.monster_state == MonsterController.State.PURSUING and game.monster.target == game.player, 2.0)
+	_check(visual_pursuit, "real sight confirms pursuit before zero alertness")
+	_check(game.monster.player_reachable, "visible player has a connected navigation route")
+	_check(not game.monster.encounter_pending, "safe sighting does not open a close-encounter QTE")
+	_check(not game.capture_started, "safe sighting does not start capture")
 	_key(KEY_1, true)
 	_key(KEY_1, false)
 	await _wait(0.3)
-	_check(alertness_handoff and visual_pursuit and game.observation.suspicion_level == 0 and game.monster.sees_player and game.monster.monster_state == MonsterController.State.PURSUING and game.monster.target == game.player and game.familiar.is_monster_controlled and game.monster.is_physics_processing() and not game._routine_active, "approved alertness input hands movement to Monster; zero temporary alertness preserves visually confirmed pursuit")
-	# Reclaim is a separate case: remove sight and owned threat state, rather
-	# than expecting a debug alertness reset to erase an active pursuit.
+	_check(game.observation.suspicion_level == 0, "zero alertness input is delivered")
+	_check(game.monster.sees_player, "zero alertness retains sight")
+	_check(game.monster.monster_state == MonsterController.State.PURSUING, "zero alertness retains PURSUING: " + game.monster.state_name())
+	_check(game.monster.target == game.player, "zero alertness retains player target")
+	_check(game.familiar.is_monster_controlled, "zero alertness retains Familiar handoff")
+	_check(game.monster.is_physics_processing(), "zero alertness retains Monster physics")
+	_check(not game._routine_active, "zero alertness keeps routine inactive")
+	print("PURSUIT DIAGNOSTICS: ", game.monster.global_position, " player=", game.player.global_position, " confidence=", game.monster._visual_contact_seconds, " reason=", game.monster.pursuit_debug_reason, " pending=", game.monster.encounter_pending, " captured=", game.capture_started)
+	# End the same real pursuit behind LivingPartitionWest (z=0, x=-9..-2).
+	# Wait for physics to synchronize the teleport and run both controllers;
+	# do not manufacture DISGUISED or clear the controller's owned threat fields.
+	var shared_body: MonsterController = game.monster
 	game.player.global_position = Vector3(-5, 0.05, -3)
-	game.monster.target = null
-	game.monster.has_last_seen = false
-	game.monster.sees_player = false
-	game.monster._visual_contact_seconds = 0
-	game.monster.encounter_cooldown = 0
-	game.monster._change_state(MonsterController.State.DISGUISED)
-	var threat_free: bool = not game.monster.can_see_player(game.read_monster_observation()) and game.monster.target == null and not game.monster.has_last_seen and game.monster.monster_state == MonsterController.State.DISGUISED and game.monster.encounter_cooldown == 0
 	var routine_reclaimed := await _until(func() -> bool: return not game.familiar.is_monster_controlled and game._routine_active and game.monster.target == null, 1.0)
-	_check(threat_free and routine_reclaimed and game.observation.suspicion_level == 0, "threat-free zero alertness reclaims the same body after sight, threat ownership and cooldown are cleared")
+	_check(not game.monster.can_see_player(game.read_monster_observation()), "partition blocks real line of sight after threat ends")
+	_check(not game.monster.sees_player, "controller observes loss of sight")
+	_check(game.monster._visual_contact_seconds == 0, "loss of sight clears visual confirmation")
+	_check(game.monster.target == null, "controller releases player target")
+	_check(not game.monster.has_last_seen, "controller clears last-seen threat ownership")
+	_check(game.monster.monster_state == MonsterController.State.DISGUISED, "ended threat returns to DISGUISED")
+	_check(game.monster.encounter_cooldown == 0, "ended threat has no encounter cooldown")
+	_check(not game.monster.encounter_pending, "ended threat has no pending QTE")
+	_check(routine_reclaimed, "threat-free fixture reclaims routine")
+	_check(not game.familiar.is_monster_controlled, "Familiar reclaims control after threat ends")
+	_check(not game.monster.is_physics_processing(), "reclaimed body disables Monster physics")
+	_check(game.familiar.is_physics_processing(), "reclaimed body enables Familiar physics")
+	_check(game.monster == shared_body and game.familiar.actor == shared_body, "routine reclaims the same shared body")
+	_check(game.observation.suspicion_level == 0, "reclaim alertness is zero")
 	await _reset()
 	game.player.global_position = Vector3(0, 0.05, 1)
 	game.environment._try_interact()
