@@ -38,6 +38,7 @@ func _fixture(position: Vector3, yaw: float = 0) -> void:
 	game.environment._on_player_moved()
 
 func _reset() -> void:
+	get_tree().paused = false
 	get_tree().reload_current_scene()
 	await _wait(0.5)
 	game = get_tree().current_scene
@@ -549,7 +550,24 @@ func run(root: Node) -> void:
 	Engine.time_scale = 2
 	_freeze()
 	_check(game.house_mode and game.environment.builder.asset_instances>600,"F5 builds furnished Kenney house with surrounding neighborhood")
+	_check(absf(game.player._camera.position.y-1.05) < 0.05 and is_equal_approx(game.player._camera.rotation.x,deg_to_rad(10)), "main game starts at the restored low viewpoint with ten-degree upward look")
+	if not is_equal_approx(game.player._camera.rotation.x,deg_to_rad(10)):
+		print("CAMERA DIAGNOSTIC position=",game.player._camera.position," rotation=",game.player._camera.rotation)
 	_check(game.navigation_is_ready,"multi-level navigation bakes successfully")
+	if "--view-preview" in OS.get_cmdline_user_args():
+		await _fixture(Vector3(0,-3.55,10.5),PI)
+		game.player._camera.rotation = game.player.standing_camera_rotation()
+		_key(KEY_E,true)
+		_key(KEY_E,false)
+		await _wait(0.4)
+		_check(game.environment.false_exit_attempted and game.monster.can_see_player(game.read_monster_observation()), "restored upward view still selects Exit and frames the revealed mother")
+		await _shot("low_pov_exit")
+		await _wait(0.9)
+		_check(game.monster.basement_reveal_done and not game.capture_started, "low viewpoint retains the readable reveal pause and active chase")
+		await _shot("low_pov_pursuit")
+		print("VIEW CHECKS: ",checks," / failures: ",failures)
+		get_tree().quit(0 if failures == 0 else 1)
+		return
 	await _verify_presence_and_shell()
 	if "--presence-only" in OS.get_cmdline_user_args():
 		print("PRESENCE CHECKS: ",checks," / failures: ",failures)
@@ -691,7 +709,7 @@ func run(root: Node) -> void:
 	# Resume Monster takeover for the false-exit case.
 	# The false exit is tested separately from the real attic escape.
 	await _fixture(Vector3(0,-3.55,10.5),PI)
-	game.player._camera.look_at(Vector3(0,-2.6,12))
+	game.player._camera.rotation = game.player.standing_camera_rotation()
 	var exit_target: Dictionary = game.environment._nearest_interactable()
 	_check(exit_target.get("title") == "Exit" and not game.environment.current_interaction_prompt().to_lower().contains("false"), "basement interaction presents a convincing Exit label")
 	_key(KEY_E,true)
@@ -718,6 +736,7 @@ func run(root: Node) -> void:
 	if qte_open: game.game_ui.call("_process",5.1)
 	var captured := await _until(func() -> bool: return game.capture_started,3)
 	_check(captured and game.capture_camera.current and int(game.audio.events.get("capture_sting",0))==1,"failed house-pursuit QTE enters capture close-up and plays one jump-scare sting")
+	_check(captured and (-game.capture_camera.global_basis.z).y > 0.0 and game.capture_camera.global_position.y < game.monster.global_position.y+1.1,"capture retains its low camera looking upward toward Mother's face")
 	await _wait(1.1)
 	_check(game.environment.escape_progress==4 and game.environment._overlay.visible,"house capture ends in captured/restart screen")
 	await _reset()
@@ -751,6 +770,8 @@ func _verify_presence_and_shell() -> void:
 	await _reset()
 	game.player.global_position = Vector3(-6,3.65,-4.4)
 	game.player.velocity = Vector3.ZERO
+	game.player.set_physics_process(false)
+	game.player.set_process_unhandled_input(false)
 	game.monster.set_physics_process(false)
 	game.familiar._patrol_cursor = 0
 	game.familiar.force_next_station()
@@ -766,7 +787,7 @@ func _verify_presence_and_shell() -> void:
 		if visited.has("basement") and height > 3.1: visited["returned_upstairs"] = true
 	_check(visited.has("ground") and visited.has("basement") and visited.has("returned_upstairs"), "household mother physically visits basement storage and returns upstairs through both staircases")
 	if not visited.has("returned_upstairs"):
-		print("PATROL DIAGNOSTIC position=",game.monster.global_position," target=",game.familiar.target_waypoint," station=",game.familiar.current_station_index)
+		print("PATROL DIAGNOSTIC position=",game.monster.global_position," target=",game.familiar.target_waypoint," station=",game.familiar.current_station_index," action=",game.familiar.current_action," moving=",game.familiar.is_moving_to_station," player=",game.player.global_position," crossing=",game.monster._crossing_stair," path=",game.monster.agent.get_current_navigation_path()," index=",game.monster.agent.get_current_navigation_path_index())
 	_check(not game.monster.encounter_pending and not game.capture_started and game.threat_progression_score() == 0.0, "stronger household presence preserves the non-aggressive opening")
 	await _reset()
 	_freeze()

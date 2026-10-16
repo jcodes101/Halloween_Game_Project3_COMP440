@@ -7,6 +7,8 @@ var lean := 0.0
 var bob := 0.0
 
 func _ready() -> void:
+	# Apply cosmetic root offsets after animation playback has sampled its pose.
+	process_priority = 100
 	# MotherVisual constructs its imported character in the parent's _ready().
 	call_deferred("_bind_rig")
 

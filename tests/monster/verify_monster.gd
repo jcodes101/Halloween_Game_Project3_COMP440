@@ -13,6 +13,7 @@ func run(world: Node) -> void:
 	await _player_controls()
 	await _audio_events()
 	await _polish_checks()
+	await _appearance_checks()
 	await _progression_checks()
 	await _recognition_and_capture()
 	await _concealment_rules()
@@ -116,6 +117,9 @@ func _polish_checks() -> void:
 		_check(settling.z > 0.0 and settling.z < tilt.z, "head tilt eases out when threat state changes")
 	lab.monster.set_physics_process(false)
 	await _wait(0.1)
+	# Root performance runs in idle processing, not the physics timer above.
+	await get_tree().process_frame
+	await get_tree().process_frame
 	_check(lab.monster.visual.character.rotation.is_zero_approx() and lab.monster.visual.character.position.is_zero_approx(), "routine handoff clears threat model offsets")
 	lab.monster.set_physics_process(true)
 
@@ -245,6 +249,37 @@ func _recognition_and_capture() -> void:
 
 func read_monster_observation() -> MonsterObservation:
 	return injected_observation
+
+func _appearance_checks() -> void:
+	await _reset()
+	lab.monster.set_physics_process(false)
+	var old_players: Array[Node] = lab.monster.visual.find_children("*","AnimationPlayer",true,false)
+	var old_animation := old_players[0] as AnimationPlayer
+	var clip: StringName = old_animation.assigned_animation
+	var midpoint := old_animation.get_animation(clip).length * 0.5
+	old_animation.play(clip)
+	old_animation.seek(midpoint,true)
+	old_animation.speed_scale = 1.35
+	old_animation.pause()
+	lab.monster._set_appearance("Doubtful")
+	var new_players: Array[Node] = lab.monster.visual.find_children("*","AnimationPlayer",true,false)
+	var animation := new_players[0] as AnimationPlayer
+	_check(is_equal_approx(animation.current_animation_position,midpoint) and is_equal_approx(animation.speed_scale,1.35) and not animation.is_playing(), "appearance change preserves walk phase speed and paused state")
+	_check(is_zero_approx(float(lab.monster.visual.current_strength)), "new appearance starts at the prior facial deformation")
+	await _wait(0.2)
+	var strength: float = lab.monster.visual.current_strength
+	_check(strength > 0.0 and strength < 0.3, "face deforms gradually during appearance transition")
+	var weights_match := false
+	for mesh in lab.monster.visual.find_children("*","MeshInstance3D",true,false):
+		for index in mesh.get_blend_shape_count():
+			if mesh.mesh.get_blend_shape_name(index) == "RevealStrength":
+				weights_match = is_equal_approx(mesh.get_blend_shape_value(index),1.0-strength)
+	_check(weights_match, "visible mesh morph weight follows the interpolated face strength")
+	await _wait(0.7)
+	_check(is_equal_approx(float(lab.monster.visual.current_strength),0.3), "facial transition reaches the approved doubtful endpoint")
+	lab.monster.reset_controller(Vector3(5,0.05,2))
+	_check(is_zero_approx(float(lab.monster.visual.current_strength)), "restart restores the ordinary face immediately")
+	await _reset()
 
 func _progression_checks() -> void:
 	await _reset(Vector3(0, 0.05, 5), Vector3(0, 0.05, 2))

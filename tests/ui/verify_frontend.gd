@@ -170,6 +170,9 @@ func run(menu: Node) -> void:
 		get_tree().quit(1)
 		return
 	game = menu.get("_game")
+	var natural_wake := await _wait_for(func() -> bool: return not bool(game.game_ui.get("wake_up_active")))
+	var natural_camera: Camera3D = game.player.get_node("PlayerCamera")
+	_check(natural_wake and not get_tree().paused and natural_camera.position.is_equal_approx(Vector3(0,1.05,0)) and natural_camera.rotation.is_equal_approx(Vector3(deg_to_rad(10),0,0)), "unskipped wake-up also settles into the low upward viewpoint")
 	game.game_ui.call("_show_ending", false)
 	await _save_preview("ui_capture_ending_preview.png")
 	var capture_buttons: Array = game.game_ui.get("_ending_panel").find_children("*", "Button", true, false)

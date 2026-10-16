@@ -1,5 +1,21 @@
 # Monster performance and perception refinements
 
+## Low viewpoint and continuous performance
+
+The shared player keeps the 1.05 m eye height and restores its original initial
+10-degree upward angle. The wake-up tween, its completion, and skipping it use
+the same standing-camera rotation. Mouse look remains unrestricted within the
+existing pitch limits. Hiding and capture retain their existing low viewpoints;
+neither the collision capsule nor sight-ray eye height was changed.
+
+Appearance changes interpolate the existing mesh morph weights over 0.65 seconds
+instead of snapping the facial deformation to its next endpoint. Model-variant
+replacement preserves the walk clip's normalized phase, speed, and play/pause
+state. Reset restores the ordinary face immediately. These changes reuse the
+approved mesh variants and animation; they add no character or animation assets.
+Cosmetic root motion runs after animation sampling, and the handoff check waits
+for visual processing so it does not sample before the idle update.
+
 ## Presence and deceptive basement Exit
 
 Mother starts near the upstairs landing. Her normal patrol repeatedly visits
@@ -91,10 +107,11 @@ The monster lab supports `-- --verify-monster`; the main gameplay scene supports
 `-- --verify-house`. Tests cover acoustic barriers, last-contact ordering,
 same-floor search selection, blocked-point expiry, and existing behavior rules.
 
-Verified in Godot 4.7.2 after the presence/Exit pass: headless monster lab 82 checks,
-rendered house 176 checks, real observation/inventory integration 72 checks,
-and legacy Familiar integration 53 checks,
-all with zero failures. House traversal, gradual escalation, hiding, basement
+Verified in Godot 4.7.2 after the low-viewpoint and appearance pass: rendered
+monster lab 89 checks, headless house 177 checks, frontend 38 checks, rendered
+viewpoint preview 5 checks, and legacy Familiar integration 53 checks, all with
+zero failures. The prior observation/inventory integration run passed 72 checks.
+House traversal, gradual escalation, hiding, basement
 reveal, capture/QTE, escape, and restart are covered. Refreshed house previews
 were generated. Full human playtesting of chase fairness and animation quality is
 still needed; these checks establish behavior and integration, not final balance.

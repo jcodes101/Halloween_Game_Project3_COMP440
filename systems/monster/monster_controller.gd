@@ -703,22 +703,52 @@ func _change_state(next: State) -> void:
 	monster_state = next
 	state_changed.emit(previous, next)
 
-func _set_appearance(appearance: String) -> void:
+func _set_appearance(appearance: String, immediate: bool = false) -> void:
 	disguise_state = appearance
 	if _appearance == appearance:
+		if immediate and is_instance_valid(visual):
+			visual.set("appearance",appearance)
+			var duration: float = visual.get("appearance_blend_seconds")
+			visual.set("appearance_blend_seconds",0.0)
+			visual.call("apply_appearance")
+			visual.set("appearance_blend_seconds",duration)
 		return
 	_appearance = appearance
+	var previous_strength := -1.0
+	var clip: StringName = &""
+	var phase := 0.0
+	var playback_speed := 1.0
+	var was_playing := false
 	if is_instance_valid(visual):
+		previous_strength = float(visual.get("current_strength"))
+		var old_players := visual.find_children("*","AnimationPlayer",true,false)
+		if not old_players.is_empty():
+			var old_animation := old_players[0] as AnimationPlayer
+			clip = old_animation.assigned_animation
+			if old_animation.has_animation(clip):
+				phase = old_animation.current_animation_position / maxf(0.001,old_animation.get_animation(clip).length)
+			playback_speed = old_animation.speed_scale
+			was_playing = old_animation.is_playing()
 		stun_visual_active = false
 		remove_child(visual)
 		visual.queue_free()
 	visual = preload("res://assets/monster/MotherVisual.tscn").instantiate()
 	visual.set("appearance", appearance)
+	visual.set("transition_from_strength",-1.0 if immediate else previous_strength)
 	visual.rotation.y = PI # Asset faces +Z; CharacterBody faces -Z.
 	var performance := preload("res://systems/monster/threat_motion.gd").new()
 	performance.actor = self
 	visual.add_child(performance)
 	add_child(visual)
+	if not clip.is_empty():
+		var players := visual.find_children("*","AnimationPlayer",true,false)
+		if not players.is_empty():
+			var animation := players[0] as AnimationPlayer
+			if animation.has_animation(clip):
+				animation.play(clip)
+				animation.seek(clampf(phase,0.0,1.0)*animation.get_animation(clip).length,true)
+				animation.speed_scale = playback_speed
+				if not was_playing: animation.pause()
 
 func _set_visual_motion(moving: bool) -> void:
 	if not is_instance_valid(visual):
@@ -779,7 +809,7 @@ func reset_controller(position: Vector3) -> void:
 	_stun_pose_elapsed = 0.0
 	_path_refresh_timer = 0.0
 	_change_state(State.DISGUISED)
-	_set_appearance("Ordinary")
+	_set_appearance("Ordinary",true)
 	monster_location = position
 
 static func _flat_distance(a: Vector3, b: Vector3) -> float:
