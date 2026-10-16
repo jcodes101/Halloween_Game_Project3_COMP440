@@ -31,6 +31,7 @@ func fixture(at: Vector3, target: Vector3) -> void:
 	game.player.rotation = Vector3.ZERO
 	game.player._camera.rotation = Vector3.ZERO
 	game.player._camera.look_at(target)
+	game.environment._on_player_moved()
 
 func entry(kind: String) -> Dictionary:
 	for value in game.environment._interactables:
@@ -59,7 +60,7 @@ func _run() -> void:
 	check(system.manager.clues_found == 0 and game.familiar.suspicion_level == 0, "preview begins UNAWARE")
 	check(environment.memorabilia.size() == 4, "all four memorabilia instantiate in playable house")
 	check(game.player.interact_requested.get_connections().size() == 1, "E has exactly one interaction signal receiver")
-	var positions: Array[Vector3] = [Vector3(-8.25, 0.05, -2.1), Vector3(8.15, 3.65, -3.8), Vector3(7.1, 3.65, -7.9), Vector3(-7, -3.55, -13.2)]
+	var positions: Array[Vector3] = [Vector3(-9, 0.05, -2.1), Vector3(-8.5, 3.65, -17.5), Vector3(7.1, 3.65, -7.9), Vector3(-7, -3.55, -13.2)]
 	for index in 4:
 		var item: Node = environment.memorabilia[index]
 		var definition := Definitions.get_definition(item.item_id)
@@ -121,7 +122,7 @@ func _run() -> void:
 	journal._process(0)
 	check(system.manager.clues_found == 0 and not journal.panel.visible, "pause menu blocks inspection and suppresses journal")
 	game.game_ui.close_menu()
-	fixture(Vector3(-8.25, 0.05, -2.1), Vector3(-7, 1, -2.1))
+	fixture(Vector3(-9, 0.05, -2.1), Vector3(-7, 1, -2.1))
 	check(environment._nearest_interactable().get("component") != first, "looking away cannot inspect memorabilia")
 	fixture(Vector3(-4, 0.05, -2.1), first.get_interaction_position())
 	key(KEY_E)
@@ -132,13 +133,16 @@ func _run() -> void:
 	fixture(Vector3(5, -3.55, -6.7), entry("crowbar").position)
 	key(KEY_E)
 	check(environment.has_crowbar and system.inventory.has_crowbar() and not environment.builder.crowbar.visible, "native crowbar pickup mirrors inventory and preserves visual/escape state")
-	fixture(Vector3(2.5, 3.65, -5.5), entry("window_key").position)
+	fixture(Vector3(-2.3, 3.65, -18), entry("window_key").position)
+	if DisplayServer.get_name() != "headless":
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("res://design/house/mothers_room.png")
 	key(KEY_E)
 	check(environment.has_window_key and system.inventory.has_room_key("attic_window"), "native window key mirrors canonical room-key inventory")
 	check(system.manager.clues_found == 0, "escape item pickups award no evidence")
 	var door: Dictionary = {"kind": "door", "door_id": "mother_room", "position": environment.builder.doors.mother_room.position}
 	var was_open: bool = environment.builder.doors.mother_room.open
-	fixture(Vector3(0, 3.65, -3.5), door.position)
+	fixture(Vector3(-5, 3.65, -10.5), door.position)
 	key(KEY_E)
 	check(environment.builder.doors.mother_room.open != was_open and system.manager.clues_found == 0, "native door E action does not inspect another item")
 	var flashlight: Node = game.player.flashlight

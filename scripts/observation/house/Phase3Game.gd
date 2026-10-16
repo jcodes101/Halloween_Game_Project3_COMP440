@@ -1,5 +1,5 @@
 extends "res://game/integration/main_game.gd"
-## Preview-only extension. The original game remains the owner of gameplay.
+## Production evidence bridge. The original game remains the owner of gameplay.
 const CoordinatorScene = preload("res://scripts/observation/scenes/observation_system.tscn")
 const InventoryBridge = preload("res://scripts/observation/house/EnvironmentInventoryAdapter.gd")
 const JournalScene = preload("res://scripts/observation/house/story_panel.tscn")
@@ -7,6 +7,11 @@ const JournalScene = preload("res://scripts/observation/house/story_panel.tscn")
 var observation_coordinator: Node
 var inventory_bridge: Node
 var story_panel: CanvasLayer
+
+func threat_progression_score() -> float:
+	if not is_instance_valid(observation_coordinator):
+		return 0.0
+	return observation_coordinator.observation.evidence_score
 
 func _build_actors() -> void:
 	super()

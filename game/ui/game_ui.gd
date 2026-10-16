@@ -538,7 +538,7 @@ func begin_wake_up_sequence(waking_player: Node) -> void:
 		_wake_tween.tween_property(camera, "position", Vector3(-0.12 * motion_scale, 0.70, 0.17 * motion_scale), 0.65).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		_wake_tween.parallel().tween_property(camera, "rotation", Vector3(deg_to_rad(-1.0), deg_to_rad(12.0) * motion_scale, deg_to_rad(1.4) * motion_scale), 0.65).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		_wake_tween.tween_property(camera, "position", Vector3(0.0, 1.05, 0.0), 1.55).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		_wake_tween.parallel().tween_property(camera, "rotation", Vector3.ZERO, 1.55).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		_wake_tween.parallel().tween_property(camera, "rotation", waking_player.call("standing_camera_rotation"), 1.55).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	else:
 		_wake_tween.tween_interval(3.55)
 	_wake_tween.tween_property(_wake_overlay, "color:a", 0.0, 0.32).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)

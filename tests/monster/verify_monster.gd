@@ -12,6 +12,9 @@ func run(world: Node) -> void:
 	_check(lab.navigation_is_ready, "navigation baked and synchronized")
 	await _player_controls()
 	await _audio_events()
+	await _polish_checks()
+	await _appearance_checks()
+	await _progression_checks()
 	await _recognition_and_capture()
 	await _concealment_rules()
 	await _search_completion()
@@ -31,6 +34,94 @@ func _check(condition: bool, label: String) -> void:
 	else:
 		failures += 1
 		push_error("FAIL: " + label)
+
+func _polish_checks() -> void:
+	await _reset(Vector3(0, 0.05, 5), Vector3(0, 0.05, 2))
+	lab.monster.set_physics_process(false)
+	var source: Vector3 = lab.player.global_position
+	var clear_alert: float = lab.monster.heard_alert(source, 50.0)
+	var barrier := StaticBody3D.new()
+	barrier.collision_layer = 8
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(4, 3, 0.2)
+	shape.shape = box
+	barrier.add_child(shape)
+	lab.add_child(barrier)
+	barrier.global_position = Vector3(0, 1.5, 3.5)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var closed_alert: float = lab.monster.heard_alert(source, 50.0)
+	_check(closed_alert < clear_alert, "closed door attenuates hearing")
+	barrier.collision_layer = 1
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check(lab.monster.heard_alert(source, 50.0) < closed_alert, "solid wall attenuates more than a door")
+	barrier.collision_layer = 0
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check(is_equal_approx(lab.monster.heard_alert(source, 50.0), clear_alert), "opening restores clear hearing")
+	_check(lab.monster.heard_alert(source + Vector3.UP * 100, 100.0) == 0.0, "distant sounds remain inaudible")
+	barrier.queue_free()
+	lab.monster.last_seen_position = source
+	lab.monster.search_locations.assign([source + Vector3.RIGHT, source + Vector3.UP * 3.6])
+	lab.monster._begin_search()
+	_check(not lab.monster._search_points.is_empty() and lab.monster._search_points[0].distance_to(source) < 1.5, "search starts at last contact")
+	var same_floor := true
+	for point in lab.monster._search_points:
+		same_floor = same_floor and absf(point.y - source.y) < 1.5
+	_check(same_floor, "search does not select another floor by proximity")
+	lab.monster._search_travel_seconds = lab.monster.tuning.search_point_timeout + 1.0
+	var previous: int = lab.monster._search_index
+	lab.monster._search(0.01)
+	_check(lab.monster._search_index > previous, "blocked search point expires")
+	lab.monster.search_locations.clear()
+	lab.monster.last_seen_position = source + Vector3.RIGHT * 3.0
+	lab.monster._begin_search()
+	var unheard_position: Vector3 = lab.monster.last_seen_position
+	lab.monster.hear_sound(source + Vector3.UP * 100.0, 100.0)
+	_check(lab.monster.last_seen_position == unheard_position and not lab.monster._search_needs_refresh, "inaudible sound cannot redirect search")
+	var alert: float = lab.monster.hear_sound(source, 60.0)
+	_check(alert > 0.0 and lab.monster._search_needs_refresh, "credible new sound requests a fresh search")
+	lab.monster._begin_search()
+	_check(not lab.monster._search_needs_refresh and lab.monster._search_points[0].distance_to(source) < 1.5, "refreshed search starts at the new heard location")
+	for step in range(1, 4):
+		lab.monster.hear_sound(source + Vector3.RIGHT * float(step) * 0.4, 60.0)
+	_check(lab.monster._search_needs_refresh, "several small audible movements redirect search cumulatively")
+	lab.monster.last_seen_position = source
+	lab.monster.tuning.room_search_radius = 0.1
+	lab.monster._begin_search()
+	lab.monster._append_search_point(source + Vector3.RIGHT * 2.0)
+	_check(lab.monster._search_points.size() == 1, "optional search probe exceeding route budget is rejected")
+	lab.monster.tuning.room_search_radius = 7.0
+	lab.monster._append_search_point(source + Vector3.RIGHT * 2.0)
+	_check(lab.monster._search_points.size() == 2, "reachable probe within route budget is retained")
+	lab.monster._search_points.assign([lab.monster.global_position + Vector3.UP * 3.6])
+	lab.monster._search_index = 0
+	lab.monster._search_pause_remaining = 0.0
+	lab.monster._search_travel_seconds = 0.0
+	lab.monster._search(0.01)
+	_check(lab.monster._search_pause_remaining == 0.0, "standing under another floor is not search arrival")
+	await _reset()
+	var modifiers: Array[Node] = lab.monster.visual.find_children("*", "SkeletonModifier3D", true, false)
+	_check(not modifiers.is_empty(), "threat pose binds to the imported skeleton after character creation")
+	if not modifiers.is_empty():
+		var pose: Node = modifiers[0]
+		lab.monster._change_state(MonsterController.State.STALKING)
+		pose.call("_process_modification_with_delta", 0.1)
+		var tilt: Vector3 = pose.offsets.get("Head_021", Vector3.ZERO)
+		_check(tilt.z > 0.0 and tilt.z < 5.0, "stalking head tilt eases into its target")
+		lab.monster._change_state(MonsterController.State.RECOVERING)
+		pose.call("_process_modification_with_delta", 0.1)
+		var settling: Vector3 = pose.offsets.get("Head_021", Vector3.ZERO)
+		_check(settling.z > 0.0 and settling.z < tilt.z, "head tilt eases out when threat state changes")
+	lab.monster.set_physics_process(false)
+	await _wait(0.1)
+	# Root performance runs in idle processing, not the physics timer above.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(lab.monster.visual.character.rotation.is_zero_approx() and lab.monster.visual.character.position.is_zero_approx(), "routine handoff clears threat model offsets")
+	lab.monster.set_physics_process(true)
 
 func _wait(seconds: float) -> void:
 	await get_tree().create_timer(seconds, false, true).timeout
@@ -158,6 +249,87 @@ func _recognition_and_capture() -> void:
 
 func read_monster_observation() -> MonsterObservation:
 	return injected_observation
+
+func _appearance_checks() -> void:
+	await _reset()
+	lab.monster.set_physics_process(false)
+	var old_players: Array[Node] = lab.monster.visual.find_children("*","AnimationPlayer",true,false)
+	var old_animation := old_players[0] as AnimationPlayer
+	var clip: StringName = old_animation.assigned_animation
+	var midpoint := old_animation.get_animation(clip).length * 0.5
+	old_animation.play(clip)
+	old_animation.seek(midpoint,true)
+	old_animation.speed_scale = 1.35
+	old_animation.pause()
+	lab.monster._set_appearance("Doubtful")
+	var new_players: Array[Node] = lab.monster.visual.find_children("*","AnimationPlayer",true,false)
+	var animation := new_players[0] as AnimationPlayer
+	_check(is_equal_approx(animation.current_animation_position,midpoint) and is_equal_approx(animation.speed_scale,1.35) and not animation.is_playing(), "appearance change preserves walk phase speed and paused state")
+	_check(is_zero_approx(float(lab.monster.visual.current_strength)), "new appearance starts at the prior facial deformation")
+	await _wait(0.2)
+	var strength: float = lab.monster.visual.current_strength
+	_check(strength > 0.0 and strength < 0.3, "face deforms gradually during appearance transition")
+	var weights_match := false
+	for mesh in lab.monster.visual.find_children("*","MeshInstance3D",true,false):
+		for index in mesh.get_blend_shape_count():
+			if mesh.mesh.get_blend_shape_name(index) == "RevealStrength":
+				weights_match = is_equal_approx(mesh.get_blend_shape_value(index),1.0-strength)
+	_check(weights_match, "visible mesh morph weight follows the interpolated face strength")
+	await _wait(0.7)
+	_check(is_equal_approx(float(lab.monster.visual.current_strength),0.3), "facial transition reaches the approved doubtful endpoint")
+	lab.monster.reset_controller(Vector3(5,0.05,2))
+	_check(is_zero_approx(float(lab.monster.visual.current_strength)), "restart restores the ordinary face immediately")
+	await _reset()
+
+func _progression_checks() -> void:
+	await _reset(Vector3(0, 0.05, 5), Vector3(0, 0.05, 2))
+	injected_observation = lab.read_monster_observation()
+	injected_observation.suspicion_level = 100.0
+	injected_observation.recognition_score = 0.0
+	lab.monster.observation_provider = self
+	await _wait(0.8)
+	_check(lab.monster.monster_state == MonsterController.State.DISGUISED and not lab.monster.encounter_pending, "evidence-unaware mother ignores aggressive temporary alertness")
+	injected_observation.recognition_score = 50.0
+	await _wait(0.8)
+	_check(lab.monster.monster_state == MonsterController.State.STALKING and lab.monster.disguise_state == "Doubtful" and not lab.monster.encounter_pending, "confirmed sight cannot skip doubtful stalking in an evidence-paced game")
+	injected_observation.recognition_score = 100.0
+	injected_observation.suspicion_level = 0.0
+	lab.monster.tuning.chase_speed = 0.0
+	lab.monster.look_at(lab.player.global_position)
+	await _wait(0.2)
+	_check(lab.monster.monster_state == MonsterController.State.PURSUING, "certain evidence enables pursuit independently of temporary alert decay")
+	lab.monster.reset_controller(Vector3(0, 0.05, 2))
+	injected_observation.recognition_score = 0.0
+	lab.monster.basement_reveal_done = true
+	lab.monster.look_at(lab.player.global_position)
+	await _wait(0.2)
+	_check(lab.monster.monster_state == MonsterController.State.PURSUING and lab.monster.disguise_state == "Revealed", "basement reveal overrides evidence gating without awarding clues")
+	# Use a direct threat tick to isolate distance from sight/navigation rules.
+	lab.monster.set_physics_process(false)
+	lab.monster.reset_controller(Vector3(0, 0.05, 2))
+	lab.monster.sees_player = true
+	lab.monster.player_reachable = true
+	injected_observation.recognition_score = 100.0
+	injected_observation.player_location = lab.monster.global_position + Vector3.UP * 3.6
+	lab.monster._handle_threat(injected_observation, 0.01)
+	_check(not lab.monster.encounter_pending and lab.outcome.is_empty(), "horizontal overlap on another floor cannot trigger capture")
+	lab.monster.knows_hiding_place = true
+	lab.monster._known_hide_position = injected_observation.player_location
+	injected_observation.is_hidden = true
+	lab.monster._handle_threat(injected_observation, 0.01)
+	_check(lab.checked_closet_count == 0, "monster cannot expose a hiding place from the floor below")
+	lab.monster.knows_hiding_place = false
+	lab.monster.sees_player = false
+	lab.monster.has_last_seen = false
+	lab.monster.basement_reveal_done = true
+	lab.monster.hunt_waypoints.assign([Vector3(1,0.05,5),Vector3(-1,0.05,5)])
+	injected_observation.is_hidden = false
+	injected_observation.recognition_score = 0.0
+	lab.monster._handle_threat(injected_observation,0.01)
+	_check(lab.monster.monster_state == MonsterController.State.LOST_TARGET and lab.monster.destination == Vector3(1,0.05,5), "after reveal lost contact starts a physical hunt route rather than returning to a passive routine")
+	lab.monster.hunt_waypoints.clear()
+	lab.monster.observation_provider = lab
+	await _reset()
 
 func _audio_events() -> void:
 	await _reset()

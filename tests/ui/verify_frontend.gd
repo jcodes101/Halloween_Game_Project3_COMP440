@@ -120,7 +120,7 @@ func run(menu: Node) -> void:
 		game.game_ui.call("_skip_wake_up")
 	await get_tree().process_frame
 	var settled_camera: Camera3D = game.player.get_node("PlayerCamera")
-	_check(not get_tree().paused and not bool(game.player.get("_qte_locked")) and game.familiar.is_physics_processing() and settled_camera.position.is_equal_approx(Vector3(0,1.05,0)) and settled_camera.rotation.is_equal_approx(Vector3.ZERO), "skipping wake-up restores the standing camera, gameplay, and Familiar exactly once")
+	_check(not get_tree().paused and not bool(game.player.get("_qte_locked")) and game.familiar.is_physics_processing() and settled_camera.position.is_equal_approx(Vector3(0,1.05,0)) and settled_camera.rotation.is_equal_approx(Vector3(deg_to_rad(10),0,0)), "skipping wake-up restores the low upward camera, gameplay, and Familiar exactly once")
 	_check(game.music_manager.get("gameplay_enabled") and game.music_manager.get("active_track_name") == "exploration", "exploration music starts after the introduction and wake-up")
 	var player_door: Dictionary = environment.builder.doors.player_bedroom
 	environment.call("_set_room_door", "player_bedroom", true)
@@ -170,6 +170,9 @@ func run(menu: Node) -> void:
 		get_tree().quit(1)
 		return
 	game = menu.get("_game")
+	var natural_wake := await _wait_for(func() -> bool: return not bool(game.game_ui.get("wake_up_active")))
+	var natural_camera: Camera3D = game.player.get_node("PlayerCamera")
+	_check(natural_wake and not get_tree().paused and natural_camera.position.is_equal_approx(Vector3(0,1.05,0)) and natural_camera.rotation.is_equal_approx(Vector3(deg_to_rad(10),0,0)), "unskipped wake-up also settles into the low upward viewpoint")
 	game.game_ui.call("_show_ending", false)
 	await _save_preview("ui_capture_ending_preview.png")
 	var capture_buttons: Array = game.game_ui.get("_ending_panel").find_children("*", "Button", true, false)

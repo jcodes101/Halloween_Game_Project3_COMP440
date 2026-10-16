@@ -34,6 +34,16 @@ var destination := Vector3.ZERO
 var agent: NavigationAgent3D
 var visual: Node3D
 var _search_points: Array[Vector3] = []
+var search_locations: Array[Vector3] = [] # Static room centers and public hide entrances; never the hidden player.
+var hunt_waypoints: Array[Vector3] = []
+var _hunt_index := 0
+## Authored stair landings supplied by the house; movement stays collision-based.
+var stair_flights: Array[Dictionary] = []
+var _crossing_stair := false
+var _stair_exit := Vector3.ZERO
+var _search_travel_seconds := 0.0
+var _search_needs_refresh := false
+var _search_origin := Vector3.ZERO
 var _search_index := 0
 var _search_pause_remaining := 0.0
 var _was_visible := false
@@ -111,13 +121,38 @@ func hear_sound(location: Vector3, loudness: float) -> float:
 	var distance := global_position.distance_to(location)
 	if distance > tuning.hearing_distance:
 		return 0.0
-	var alert := clampf(loudness - distance * tuning.sound_falloff_per_meter, 0.0, 60.0)
+	var alert := heard_alert(location, loudness)
 	if alert <= 0.0:
 		return 0.0
+	if monster_state == State.SEARCHING and location.distance_to(_search_origin) > tuning.arrival_distance * 2.0:
+		_search_needs_refresh = true
 	last_heard_position = location
 	last_seen_position = location
 	has_last_seen = true
 	return alert
+
+## Geometry affects AI hearing, not the audio mix. Exclude each whole collider
+## after a hit so both faces of one wall do not count twice.
+func heard_alert(location: Vector3, loudness: float) -> float:
+	var distance := global_position.distance_to(location)
+	if distance > tuning.hearing_distance:
+		return 0.0
+	var excluded: Array[RID] = [get_rid()]
+	if is_instance_valid(player_actor):
+		excluded.append(player_actor.get_rid())
+	var attenuation := 0.0
+	for barrier in range(3):
+		var ray := PhysicsRayQueryParameters3D.create(global_position + Vector3.UP * 1.2, location + Vector3.UP * 1.0, 9, excluded)
+		ray.hit_from_inside = true
+		var hit := get_world_3d().direct_space_state.intersect_ray(ray)
+		if hit.is_empty():
+			break
+		var body := hit.get("collider") as CollisionObject3D
+		if body == null:
+			break
+		attenuation += tuning.closed_door_sound_loss if body.collision_layer & 8 else tuning.wall_sound_loss
+		excluded.append(body.get_rid())
+	return clampf(loudness - distance * tuning.sound_falloff_per_meter - attenuation, 0.0, 60.0)
 
 func can_see_player(observation: MonsterObservation) -> bool:
 	if not is_instance_valid(player_actor):
@@ -209,8 +244,10 @@ func _physics_process(delta: float) -> void:
 func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 	var sight_threshold := tuning.close_sight_confirm_seconds if _flat_distance(global_position, observation.player_location) <= tuning.close_sight_pursuit_distance else tuning.distant_sight_confirm_seconds
 	var confirmed_visual_contact := sees_player and _visual_contact_seconds >= sight_threshold
-	var recognition := 2 if basement_reveal_done or confirmed_visual_contact else 1 if observation.suspicion_level >= tuning.stalk_threshold else 0
-	if observation.suspicion_level >= tuning.pursue_threshold:
+	var evidence_paced := observation.recognition_score >= 0.0
+	var recognition_score := observation.recognition_score if evidence_paced else observation.suspicion_level
+	var recognition := 2 if basement_reveal_done or (confirmed_visual_contact and not evidence_paced) else 1 if recognition_score >= tuning.stalk_threshold else 0
+	if recognition_score >= tuning.pursue_threshold:
 		recognition = 2
 	if recognition == 0:
 		_change_state(State.DISGUISED)
@@ -218,7 +255,7 @@ func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 		has_last_seen = false
 		hidden_still_time = 0.0
 		_set_appearance("Ordinary")
-		pursuit_debug_reason = "No current suspicion or confirmed sight"
+		pursuit_debug_reason = "Normal recognition; maintaining disguise" if evidence_paced else "No current suspicion or confirmed sight"
 		_stop(delta)
 		return
 	_set_appearance("Revealed" if basement_reveal_done else "Uncanny" if recognition == 2 else "Doubtful")
@@ -227,7 +264,7 @@ func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 		_change_state(State.SEARCHING)
 		hidden_still_time = 0.0
 		_walk_to(_known_hide_position, tuning.stalk_speed, delta)
-		if _flat_distance(global_position, _known_hide_position) < 1.5 and not _hiding_checked:
+		if global_position.distance_to(_known_hide_position) < 1.5 and not _hiding_checked:
 			_hiding_checked = true
 			hiding_place_checked.emit(_known_hide_position)
 		return
@@ -237,18 +274,18 @@ func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 		has_last_seen = true
 		hidden_still_time = 0.0
 		if player_reachable:
-			if recognition == 2 or confirmed_visual_contact:
+			if recognition == 2:
 				pursuit_debug_reason = "Visible player confirmed" if confirmed_visual_contact else "Awareness reached pursuit threshold"
 				_change_state(State.PURSUING)
-				if _flat_distance(global_position, observation.player_location) <= tuning.capture_distance:
+				if global_position.distance_to(observation.player_location) <= tuning.capture_distance:
 					if encounter_cooldown <= 0.0:
 						_try_close_encounter()
 					else:
 						_stop(delta)
 					return
-				_walk_to(_player_navigation_position, tuning.chase_speed, delta)
+				_walk_to(_player_navigation_position, tuning.enraged_chase_speed if basement_reveal_done else tuning.chase_speed, delta)
 			else:
-				pursuit_debug_reason = "Visible; confirming sight"
+				pursuit_debug_reason = "Doubtful; watching without attacking" if evidence_paced else "Visible; confirming sight"
 				_change_state(State.STALKING)
 				var distance := _flat_distance(global_position, observation.player_location)
 				if distance > tuning.stalk_distance + 0.25:
@@ -264,7 +301,7 @@ func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 	if has_last_seen:
 		if not sees_player:
 			pursuit_debug_reason = "Searching last confirmed position"
-		if monster_state != State.SEARCHING or _search_points.is_empty():
+		if monster_state != State.SEARCHING or _search_points.is_empty() or _search_needs_refresh:
 			_begin_search()
 		if observation.is_hidden and observation.player_is_still and not sees_player:
 			hidden_still_time += delta
@@ -278,7 +315,12 @@ func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 	else:
 		pursuit_debug_reason = "No player sighting or credible clue"
 		_change_state(State.LOST_TARGET)
-		if retreat_anchor != null:
+		if basement_reveal_done and not hunt_waypoints.is_empty():
+			var waypoint := hunt_waypoints[_hunt_index % hunt_waypoints.size()]
+			if global_position.distance_to(waypoint) < 0.8:
+				_hunt_index += 1
+			_walk_to(waypoint, tuning.enraged_search_speed, delta)
+		elif retreat_anchor != null:
 			_walk_to(retreat_anchor.global_position, tuning.stalk_speed, delta)
 		else:
 			_stop(delta)
@@ -293,7 +335,7 @@ func _handle_interception(observation: MonsterObservation, delta: float) -> void
 		target = null
 		if not arrived_for_interception:
 			_walk_to(interception_anchor.global_position, tuning.stalk_speed, delta)
-			if _flat_distance(global_position, interception_anchor.global_position) <= tuning.arrival_distance and point_reachable(interception_anchor.global_position):
+			if global_position.distance_to(interception_anchor.global_position) <= tuning.arrival_distance and point_reachable(interception_anchor.global_position):
 				arrived_for_interception = true
 				var doorway_direction := interception_anchor.global_basis.z
 				rotation.y = atan2(-doorway_direction.x, -doorway_direction.z)
@@ -319,11 +361,23 @@ func _handle_interception(observation: MonsterObservation, delta: float) -> void
 		_handle_threat(observation, delta)
 
 func _begin_search() -> void:
+	_search_needs_refresh = false
+	_search_origin = last_seen_position
 	_change_state(State.SEARCHING)
 	_search_points.clear()
 	_search_index = 0
 	_search_pause_remaining = 0.0
 	var map := agent.get_navigation_map()
+	_search_travel_seconds = 0.0
+	# Always investigate the actual last contact first, on its original floor.
+	_append_search_point(last_seen_position)
+	var nearby: Array[Vector3] = []
+	for location in search_locations:
+		if absf(location.y - last_seen_position.y) < 1.5 and _flat_distance(location, last_seen_position) <= tuning.room_search_radius:
+			nearby.append(location)
+	nearby.sort_custom(func(a: Vector3, b: Vector3) -> bool: return a.distance_squared_to(last_seen_position) < b.distance_squared_to(last_seen_position))
+	for location in nearby.slice(0, 4):
+		_append_search_point(location)
 	var offsets: Array[Vector3] = [Vector3.ZERO, Vector3.LEFT, Vector3.FORWARD, Vector3.RIGHT, Vector3.BACK]
 	for index in range(offsets.size() - 1, 0, -1):
 		var other := _search_rng.randi_range(0, index)
@@ -332,9 +386,26 @@ func _begin_search() -> void:
 		offsets[other] = swap
 	for offset in offsets:
 		var point := NavigationServer3D.map_get_closest_point(map, last_seen_position + offset * tuning.search_radius)
-		if point_reachable(point):
-			_search_points.append(point)
+		if absf(point.y - last_seen_position.y) < 1.5:
+			_append_search_point(point)
 	cue_requested.emit("[Footsteps slow; she is searching the last place she saw you]")
+
+func _append_search_point(requested: Vector3) -> void:
+	var point := NavigationServer3D.map_get_closest_point(agent.get_navigation_map(), requested)
+	if absf(point.y - last_seen_position.y) >= 1.5 or point.distance_to(requested) > 1.5 or not point_reachable(point):
+		return
+	# Nearby probes across a wall must not require a tour of the whole house.
+	if not _search_points.is_empty():
+		var route := NavigationServer3D.map_get_path(agent.get_navigation_map(), _search_points[0], point, true)
+		var length := 0.0
+		for index in range(1, route.size()):
+			length += route[index - 1].distance_to(route[index])
+		if route.is_empty() or length > tuning.room_search_radius * 2.0:
+			return
+	for existing in _search_points:
+		if existing.distance_to(point) < 0.8:
+			return
+	_search_points.append(point)
 
 func _search(delta: float) -> void:
 	if _search_index >= _search_points.size():
@@ -342,7 +413,14 @@ func _search(delta: float) -> void:
 		_stop(delta)
 		return
 	var point := _search_points[_search_index]
-	if _flat_distance(global_position, point) <= tuning.arrival_distance:
+	_search_travel_seconds += delta
+	# Furniture or a newly closed door must not trap the entire search forever.
+	if _search_travel_seconds > tuning.search_point_timeout:
+		_search_index += 1
+		_search_travel_seconds = 0.0
+		_search_pause_remaining = 0.0
+		return
+	if _flat_distance(global_position, point) <= tuning.arrival_distance and absf(global_position.y - point.y) < 1.5:
 		if _search_pause_remaining <= 0.0:
 			_search_pause_remaining = tuning.search_pause_seconds
 		else:
@@ -351,11 +429,13 @@ func _search(delta: float) -> void:
 			_face(look_point, delta)
 			if _search_pause_remaining <= 0.0:
 				_search_index += 1
+				_search_travel_seconds = 0.0
 		_stop(delta)
 	else:
-		_walk_to(point, tuning.stalk_speed * 0.8, delta)
+		_walk_to(point, tuning.enraged_search_speed if basement_reveal_done else tuning.stalk_speed * 0.8, delta)
 
 func _lose_target() -> void:
+	_search_needs_refresh = false
 	target = null
 	has_last_seen = false
 	knows_hiding_place = false
@@ -363,6 +443,7 @@ func _lose_target() -> void:
 	_search_points.clear()
 	_search_index = 0
 	_search_pause_remaining = 0.0
+	_search_travel_seconds = 0.0
 	_change_state(State.LOST_TARGET)
 	cue_requested.emit("[Footsteps recede; she has lost you]")
 
@@ -371,6 +452,36 @@ func _walk_to(point: Vector3, speed: float, delta: float) -> void:
 	if not navigation_ready():
 		_stop(delta)
 		return
+	if _crossing_stair:
+		if global_position.distance_to(_stair_exit) < 0.5:
+			_crossing_stair = false
+			_path_refresh_timer = 0.0
+		else:
+			_move_toward_position(_stair_exit,speed,delta)
+			return
+	# Reach the near landing first instead of cutting diagonally into the side
+	# of an off-mesh stair link. Traverse the actual ramp using move_and_slide.
+	var entry := Vector3.ZERO
+	var exit := Vector3.ZERO
+	var nearest_height := INF
+	for flight in stair_flights:
+		var low: Vector3 = flight.low
+		var high: Vector3 = flight.high
+		var middle := (low.y + high.y) * 0.5
+		if (global_position.y < middle and point.y > middle) or (global_position.y > middle and point.y < middle):
+			var candidate: Vector3 = low if global_position.y < middle else high
+			var height := absf(global_position.y-candidate.y)
+			if height < nearest_height:
+				nearest_height = height
+				entry = candidate
+				exit = high if global_position.y < middle else low
+	if nearest_height < INF:
+		if global_position.distance_to(entry) < 0.45:
+			_crossing_stair = true
+			_stair_exit = exit
+			_move_toward_position(exit,speed,delta)
+			return
+		point = entry
 	if agent.target_position.distance_to(point) > 0.5 and _path_refresh_timer <= 0.0:
 		if not point_reachable(point):
 			_stop(delta)
@@ -379,6 +490,9 @@ func _walk_to(point: Vector3, speed: float, delta: float) -> void:
 		agent.target_position = point
 		_path_refresh_timer = tuning.path_refresh_seconds
 	var next := agent.get_next_path_position()
+	_move_toward_position(next,speed,delta)
+
+func _move_toward_position(next: Vector3, speed: float, delta: float) -> void:
 	var direction := next - global_position
 	direction.y = 0
 	if direction.length() <= 0.05:
@@ -589,19 +703,52 @@ func _change_state(next: State) -> void:
 	monster_state = next
 	state_changed.emit(previous, next)
 
-func _set_appearance(appearance: String) -> void:
+func _set_appearance(appearance: String, immediate: bool = false) -> void:
 	disguise_state = appearance
 	if _appearance == appearance:
+		if immediate and is_instance_valid(visual):
+			visual.set("appearance",appearance)
+			var duration: float = visual.get("appearance_blend_seconds")
+			visual.set("appearance_blend_seconds",0.0)
+			visual.call("apply_appearance")
+			visual.set("appearance_blend_seconds",duration)
 		return
 	_appearance = appearance
+	var previous_strength := -1.0
+	var clip: StringName = &""
+	var phase := 0.0
+	var playback_speed := 1.0
+	var was_playing := false
 	if is_instance_valid(visual):
+		previous_strength = float(visual.get("current_strength"))
+		var old_players := visual.find_children("*","AnimationPlayer",true,false)
+		if not old_players.is_empty():
+			var old_animation := old_players[0] as AnimationPlayer
+			clip = old_animation.assigned_animation
+			if old_animation.has_animation(clip):
+				phase = old_animation.current_animation_position / maxf(0.001,old_animation.get_animation(clip).length)
+			playback_speed = old_animation.speed_scale
+			was_playing = old_animation.is_playing()
 		stun_visual_active = false
 		remove_child(visual)
 		visual.queue_free()
 	visual = preload("res://assets/monster/MotherVisual.tscn").instantiate()
 	visual.set("appearance", appearance)
+	visual.set("transition_from_strength",-1.0 if immediate else previous_strength)
 	visual.rotation.y = PI # Asset faces +Z; CharacterBody faces -Z.
+	var performance := preload("res://systems/monster/threat_motion.gd").new()
+	performance.actor = self
+	visual.add_child(performance)
 	add_child(visual)
+	if not clip.is_empty():
+		var players := visual.find_children("*","AnimationPlayer",true,false)
+		if not players.is_empty():
+			var animation := players[0] as AnimationPlayer
+			if animation.has_animation(clip):
+				animation.play(clip)
+				animation.seek(clampf(phase,0.0,1.0)*animation.get_animation(clip).length,true)
+				animation.speed_scale = playback_speed
+				if not was_playing: animation.pause()
 
 func _set_visual_motion(moving: bool) -> void:
 	if not is_instance_valid(visual):
@@ -611,13 +758,18 @@ func _set_visual_motion(moving: bool) -> void:
 		return
 	var animation := players[0] as AnimationPlayer
 	if moving:
-		animation.speed_scale = max(0.5, Vector2(velocity.x, velocity.z).length() / 2.0)
+		animation.speed_scale = clampf(Vector2(velocity.x, velocity.z).length() / 2.0, 0.5, 2.3)
 		if not animation.is_playing():
 			animation.play()
 	else:
 		animation.pause()
 
 func reset_controller(position: Vector3) -> void:
+	_crossing_stair = false
+	_stair_exit = position
+	_hunt_index = 0
+	_search_needs_refresh = false
+	_search_origin = position
 	_restore_stun_visual()
 	global_position = position
 	velocity = Vector3.ZERO
@@ -637,6 +789,7 @@ func reset_controller(position: Vector3) -> void:
 	_search_points.clear()
 	_search_index = 0
 	_search_pause_remaining = 0.0
+	_search_travel_seconds = 0.0
 	destination = position
 	agent.target_position = position
 	_last_step_position = position
@@ -656,7 +809,7 @@ func reset_controller(position: Vector3) -> void:
 	_stun_pose_elapsed = 0.0
 	_path_refresh_timer = 0.0
 	_change_state(State.DISGUISED)
-	_set_appearance("Ordinary")
+	_set_appearance("Ordinary",true)
 	monster_location = position
 
 static func _flat_distance(a: Vector3, b: Vector3) -> float:

@@ -5,6 +5,8 @@ extends Resource
 @export var pursue_threshold := 70.0
 @export var stalk_speed := 2.0
 @export var chase_speed := 4.3
+@export var enraged_chase_speed := 4.3
+@export var enraged_search_speed := 2.8
 @export_range(2.0, 24.0, 0.5) var acceleration := 12.0
 @export_range(2.0, 30.0, 0.5) var deceleration := 16.0
 @export_range(0.1, 1.0, 0.05) var path_refresh_seconds := 0.25
@@ -41,3 +43,9 @@ extends Resource
 @export_range(0.2, 3.0, 0.1) var search_pause_seconds := 0.9
 ## Zero uses a randomized search-route order; set a non-zero value to reproduce it.
 @export var search_random_seed := 0
+
+## Acoustic loss in alert points per intersected solid collider (up to three).
+@export var wall_sound_loss := 18.0
+@export var closed_door_sound_loss := 10.0
+@export var room_search_radius := 7.0
+@export var search_point_timeout := 10.0

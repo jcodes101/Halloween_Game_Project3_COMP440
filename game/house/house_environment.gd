@@ -36,12 +36,15 @@ func _build_world() -> void:
 	_interactables = builder.hide_spots.duplicate(true)
 	_spawn_battery_pickups()
 	_interactables.append({"title":"Basement crowbar","kind":"crowbar","position":Vector3(5,-2.55,-8),"prompt":"E — pick up crowbar"})
-	_interactables.append({"title":"Mother's window key","kind":"window_key","position":Vector3(3.5,4.325,-5.5),"prompt":"E — pick up attic window key"})
+	_interactables.append({"title":"Mother's window key","kind":"window_key","position":builder.MOTHER_KEY_POSITION,"prompt":"E — pick up attic window key"})
 	_interactables.append({"title":"Boarded attic hatch","kind":"hatch","position":Vector3(0,4.9,-3),"prompt":"E — pry boards / pull down attic ladder"})
 	_interactables.append({"title":"Attic ladder","kind":"ladder_down","position":Vector3(0,8.2,-4.5),"prompt":"E — climb down to second floor"})
 	_interactables.append({"title":"Attic window","kind":"window","position":Vector3(0,8.3,11.75),"prompt":"E — unlock window; Space + move forward to jump out"})
 	for id in builder.doors:
 		_interactables.append({"title":id.replace("_"," ").capitalize(),"kind":"door","door_id":id,"position":builder.doors[id].position,"prompt":"E — open / close door"})
+		if id == "false_exit":
+			_interactables[-1].title = "Exit"
+			_interactables[-1].prompt = "E — open exit"
 	# Existing core state name maps to the false-exit door only, not a victory route.
 	door_state["basement_door"] = "locked"
 	for id in builder.doors:
@@ -108,7 +111,7 @@ func interact(target: Dictionary) -> void:
 			has_crowbar = true
 			builder.crowbar.visible = false
 			interaction_feedback.emit("item_pickup",target.position)
-			_show_message("Crowbar collected. Pry the boarded ceiling hatch upstairs.")
+			_show_message("Crowbar collected. There is an Exit at the front of the basement." if not false_exit_attempted else "Crowbar collected. Pry the boarded ceiling hatch upstairs.")
 		"window_key":
 			if has_window_key: return
 			has_window_key = true
@@ -147,6 +150,9 @@ func interact(target: Dictionary) -> void:
 		"door":
 			var id: String = target.door_id
 			if id == "false_exit":
+				if false_exit_attempted:
+					_show_message("That exit is blocked. Find another way out.")
+					return
 				false_exit_attempted = true
 				escape_progress = EscapeProgress.BASEMENT_READY
 				open_basement_route()
@@ -295,13 +301,13 @@ func open_basement_route() -> void:
 	if not false_exit_attempted or door_state["basement_door"] == "open":
 		return
 	if interception_gate != null and not interception_gate.request_door_open():
-		_show_message("[Footsteps approaching behind the false exit] The handle resists.")
+		_show_message("The handle resists.")
 		return
 	_set_room_door("false_exit",true)
 	door_state["basement_door"] = "open"
 	escape_progress = EscapeProgress.BASEMENT_ENTERED
 	basement_reveal_requested.emit()
-	_show_message("A wall beyond the door. This is not an exit. Run!")
+	_show_message("Mother is blocking the exit. Run! Break her sight and hide.")
 	environment_state_changed.emit()
 
 func climb_ladder(upward: bool) -> void:
@@ -344,10 +350,10 @@ func _on_player_moved() -> void:
 		player_location = "attic"
 	elif at.y>2:
 		if at.z < -12:
-			player_location = "guest_room" if at.x<0 else "upstairs_study"
+			player_location = "mothers_room" if at.x<0 else "upstairs_study"
 		else:
 			player_location = "second_floor_hall"
-			if at.z<0 and at.z> -7 and at.x>1.2: player_location = "mothers_room"
+			if at.z<0 and at.z> -7 and at.x>1.2: player_location = "guest_room"
 			elif at.z<0 and at.z> -7 and at.x< -1.2: player_location = "your_room"
 			elif at.z< -7: player_location = "upstairs_bathroom" if at.x<0 else "upstairs_study"
 	elif at.y< -1:
@@ -396,6 +402,8 @@ func _refresh_state() -> void:
 func objective_text() -> String:
 	if bedroom_departure_pending:
 		return "Leave your bedroom."
+	if not false_exit_attempted and not attic_open:
+		return "Find a way out. Look for an exit downstairs."
 	if escape_progress == EscapeProgress.ESCAPED: return "Escaped into the evening neighborhood"
 	if escape_progress == EscapeProgress.CAPTURED: return "Captured"
 	if window_open: return "Jump through the attic window and land outside"

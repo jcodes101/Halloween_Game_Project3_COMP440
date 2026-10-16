@@ -17,7 +17,7 @@ position = Vector3(-9.7, 1.04, -2.1)
 [node name="Visual" parent="MomRecipeCard" index="0"]
 material_override = SubResource("MomPaper")
 [node name="MomUnfinishedLetter" parent="." instance=ExtResource("2")]
-position = Vector3(8.15, 4.34, -5.25)
+position = Vector3(-8.5, 4.54, -19)
 [node name="Visual" parent="MomUnfinishedLetter" index="0"]
 material_override = SubResource("MomPaper")
 [node name="MimicRehearsalNotes" parent="." instance=ExtResource("3")]
