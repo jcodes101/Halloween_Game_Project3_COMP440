@@ -5,6 +5,8 @@ extends Resource
 @export var pursue_threshold := 70.0
 @export var stalk_speed := 2.0
 @export var chase_speed := 4.3
+@export var enraged_chase_speed := 4.3
+@export var enraged_search_speed := 2.8
 @export_range(2.0, 24.0, 0.5) var acceleration := 12.0
 @export_range(2.0, 30.0, 0.5) var deceleration := 16.0
 @export_range(0.1, 1.0, 0.05) var path_refresh_seconds := 0.25

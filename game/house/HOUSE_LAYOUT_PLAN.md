@@ -48,20 +48,20 @@ The checked generated geometry places the ground-floor west living room at appro
   │ Landing / player   │            │ Main stair landing     │ z 7…12
   │ circulation        │ hall spine │ closet hiding spot     │
   ├────────────────────┤            ├────────────────────────┤
-  │ Player bedroom     │            │ Mother's bedroom       │ z 0…-7
-  │ under-bed hiding   │            │ key remains here       │
+  │ Player bedroom     │            │ Guest bedroom          │ z 0…-7
+  │ under-bed hiding   │            │ under-bed hiding       │
   ├────────────────────┤            ├────────────────────────┤
   │ Shared bathroom    │            │ Study                  │ z -7…-12
   ├─────── rear opening┴──────┬─────┴──── rear opening ──────┤ z -12
-  │ Guest bedroom              │ Study / library              │
+  │ Mother's bedroom + key     │ Study / library              │
   │ under-bed hiding           │ desk, chair, books, reading  │ z -12…-22
   └────────────────────────────┴───────────────────────────────┘
                           REAR / -Z
 ```
 
-The main stair arrives at the central/east landing. Bedrooms open from the hall side rather than connecting through one another. The original west/east room partitions retain the player and Mother's bedroom locations. The rear west space is one guest bedroom; the rear east study and reading area are combined into one study/library by omitting the unnecessary cross-wall. The attic hatch stays in the upstairs circulation area at `(0, -3)` in X/Z, not inside a bedroom.
+The main stair arrives at the central/east landing. The player's bedroom remains west; the room opposite is a guest bedroom. Mother's bedroom is in the rear west suite, entered through a closable door at `(-5, 3.6, -12)`. Its cabinet holds the window key, and a rear desk holds her unfinished letter. The rear east study and reading area remain combined. The attic hatch stays in the upstairs hall at `(0, -3)` in X/Z.
 
-**Connections:** main stair to landing; landing to bedrooms, bathroom, study, closet, and rear wing. Both rear openings and a cross-opening between rear sides preserve alternate pursuit routes. The Mother’s room key stays at `(3.5, 4.325, -5.5)`.
+**Connections:** main stair to landing; landing to bedrooms, bathroom, study, closet, and rear wing. Rear openings and the cross-opening preserve alternate pursuit routes. Mother's room key is at `(-3.5, 4.525, -18)`.
 
 ## Basement
 
@@ -102,13 +102,13 @@ The kitchen-side basement stair opens into the main passage. The west-side stora
 - A fresh run starts in the west second-floor bedroom beside the existing single bed, at approximately `(-8.0, 3.6, -4.4)`, facing the bedroom exit. The initial objective is **Leave your bedroom**.
 - The player's bedroom door at the west side of the central hall starts closed and uses the same E interaction, hinge animation, and collision layer as the other room doors.
 - Additional interactive doors serve the ground-floor bathroom, pantry, dining room, upstairs bathroom, basement workshop, and basement utility room. The second-floor door to the rear guest/study wing remains open at start to preserve circulation.
-- The existing Mother's room door remains closed but openable, since its room contains the progression key. The jammed front entrance and false basement exit retain their special locked/encounter behavior; the attic hatch and escape window retain their existing progression interactions.
+- The rear Mother's room door starts closed but opens with E. The room opposite the player is now a guest bedroom. The basement door presents itself as Exit, stages Mother behind its opaque panel when attempted, and opens for the reveal. The encounter pocket and former side gap are fully enclosed. The attic hatch and window retain their existing progression interactions.
 - During pursuit, the Familiar can open ordinary closed room doors when it reaches the doorway. It cannot open the jammed front door or bypass the false-exit encounter. A room door cannot be closed while the player or Familiar is standing in its swing area.
 
 ## Kept gameplay and household assets
 
 - Ground-floor living room sofa hiding, both bedroom under-bed hiding spots, closet hiding, and basement box hiding remain in their existing positions.
-- Crowbar, Mother's key, boarded hatch, ladder, window, front door, and false-exit interactions retain their existing coordinates and progression.
+- Crowbar, hatch, ladder, window, front door, and basement Exit keep their locations. Mother's key and unfinished letter move to her rear upstairs suite. The deceptive Exit now starts an immediate visible encounter and faster persistent hunt rather than waiting for a distant arrival.
 - Existing televisions, kitchen appliances, furniture, lamps, plants, bookcases, and storage props are reused. The rear-wing family room retains its CRT; the study/library retains its desk, chair, shelves, books, and reading chair.
 - Room location names now distinguish the ground-floor breakfast room from the sunroom, treat the upstairs rear east as one study, and call the rear east basement laundry/utility area utility.
 

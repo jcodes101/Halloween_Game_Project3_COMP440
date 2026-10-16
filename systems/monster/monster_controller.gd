@@ -35,6 +35,12 @@ var agent: NavigationAgent3D
 var visual: Node3D
 var _search_points: Array[Vector3] = []
 var search_locations: Array[Vector3] = [] # Static room centers and public hide entrances; never the hidden player.
+var hunt_waypoints: Array[Vector3] = []
+var _hunt_index := 0
+## Authored stair landings supplied by the house; movement stays collision-based.
+var stair_flights: Array[Dictionary] = []
+var _crossing_stair := false
+var _stair_exit := Vector3.ZERO
 var _search_travel_seconds := 0.0
 var _search_needs_refresh := false
 var _search_origin := Vector3.ZERO
@@ -277,7 +283,7 @@ func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 					else:
 						_stop(delta)
 					return
-				_walk_to(_player_navigation_position, tuning.chase_speed, delta)
+				_walk_to(_player_navigation_position, tuning.enraged_chase_speed if basement_reveal_done else tuning.chase_speed, delta)
 			else:
 				pursuit_debug_reason = "Doubtful; watching without attacking" if evidence_paced else "Visible; confirming sight"
 				_change_state(State.STALKING)
@@ -309,7 +315,12 @@ func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 	else:
 		pursuit_debug_reason = "No player sighting or credible clue"
 		_change_state(State.LOST_TARGET)
-		if retreat_anchor != null:
+		if basement_reveal_done and not hunt_waypoints.is_empty():
+			var waypoint := hunt_waypoints[_hunt_index % hunt_waypoints.size()]
+			if global_position.distance_to(waypoint) < 0.8:
+				_hunt_index += 1
+			_walk_to(waypoint, tuning.enraged_search_speed, delta)
+		elif retreat_anchor != null:
 			_walk_to(retreat_anchor.global_position, tuning.stalk_speed, delta)
 		else:
 			_stop(delta)
@@ -421,7 +432,7 @@ func _search(delta: float) -> void:
 				_search_travel_seconds = 0.0
 		_stop(delta)
 	else:
-		_walk_to(point, tuning.stalk_speed * 0.8, delta)
+		_walk_to(point, tuning.enraged_search_speed if basement_reveal_done else tuning.stalk_speed * 0.8, delta)
 
 func _lose_target() -> void:
 	_search_needs_refresh = false
@@ -441,6 +452,36 @@ func _walk_to(point: Vector3, speed: float, delta: float) -> void:
 	if not navigation_ready():
 		_stop(delta)
 		return
+	if _crossing_stair:
+		if global_position.distance_to(_stair_exit) < 0.5:
+			_crossing_stair = false
+			_path_refresh_timer = 0.0
+		else:
+			_move_toward_position(_stair_exit,speed,delta)
+			return
+	# Reach the near landing first instead of cutting diagonally into the side
+	# of an off-mesh stair link. Traverse the actual ramp using move_and_slide.
+	var entry := Vector3.ZERO
+	var exit := Vector3.ZERO
+	var nearest_height := INF
+	for flight in stair_flights:
+		var low: Vector3 = flight.low
+		var high: Vector3 = flight.high
+		var middle := (low.y + high.y) * 0.5
+		if (global_position.y < middle and point.y > middle) or (global_position.y > middle and point.y < middle):
+			var candidate: Vector3 = low if global_position.y < middle else high
+			var height := absf(global_position.y-candidate.y)
+			if height < nearest_height:
+				nearest_height = height
+				entry = candidate
+				exit = high if global_position.y < middle else low
+	if nearest_height < INF:
+		if global_position.distance_to(entry) < 0.45:
+			_crossing_stair = true
+			_stair_exit = exit
+			_move_toward_position(exit,speed,delta)
+			return
+		point = entry
 	if agent.target_position.distance_to(point) > 0.5 and _path_refresh_timer <= 0.0:
 		if not point_reachable(point):
 			_stop(delta)
@@ -449,6 +490,9 @@ func _walk_to(point: Vector3, speed: float, delta: float) -> void:
 		agent.target_position = point
 		_path_refresh_timer = tuning.path_refresh_seconds
 	var next := agent.get_next_path_position()
+	_move_toward_position(next,speed,delta)
+
+func _move_toward_position(next: Vector3, speed: float, delta: float) -> void:
 	var direction := next - global_position
 	direction.y = 0
 	if direction.length() <= 0.05:
@@ -691,6 +735,9 @@ func _set_visual_motion(moving: bool) -> void:
 		animation.pause()
 
 func reset_controller(position: Vector3) -> void:
+	_crossing_stair = false
+	_stair_exit = position
+	_hunt_index = 0
 	_search_needs_refresh = false
 	_search_origin = position
 	_restore_stun_visual()

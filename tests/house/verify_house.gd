@@ -550,6 +550,11 @@ func run(root: Node) -> void:
 	_freeze()
 	_check(game.house_mode and game.environment.builder.asset_instances>600,"F5 builds furnished Kenney house with surrounding neighborhood")
 	_check(game.navigation_is_ready,"multi-level navigation bakes successfully")
+	await _verify_presence_and_shell()
+	if "--presence-only" in OS.get_cmdline_user_args():
+		print("PRESENCE CHECKS: ",checks," / failures: ",failures)
+		get_tree().quit(0 if failures == 0 else 1)
+		return
 	var living_bounds: Rect2 = game.environment.builder.LIVING_ROOM_BOUNDS
 	var old_living_area := 9.8 * 4.0
 	var new_living_area := living_bounds.size.x * living_bounds.size.y
@@ -630,7 +635,7 @@ func run(root: Node) -> void:
 	game.environment.climb_ladder(false)
 	await _until(func() -> bool: return not game.environment.climb_in_progress,4)
 	_check(game.player.global_position.y<4,"attic ladder also descends to second floor")
-	await _fixture(Vector3(0,3.65,-3.5),-PI/2)
+	await _fixture(Vector3(-5,3.65,-10.5),0)
 	_key(KEY_E,true)
 	_key(KEY_E,false)
 	await _wait(0.15)
@@ -638,9 +643,9 @@ func run(root: Node) -> void:
 	_key(KEY_W,true)
 	await _wait(0.6)
 	_key(KEY_W,false)
-	_check(game.player.global_position.x>1.7,"player physically passes bedroom doorway")
-	await _fixture(Vector3(2.5,3.65,-5.5))
-	game.player._camera.look_at(Vector3(3.5,4.325,-5.5))
+	_check(game.player.global_position.z< -12.2,"player physically passes the rear bedroom doorway")
+	await _fixture(Vector3(-2.3,3.65,-18))
+	game.player._camera.look_at(game.environment.builder.MOTHER_KEY_POSITION)
 	await _shot("mothers_room")
 	_key(KEY_E,true)
 	_key(KEY_E,false)
@@ -685,13 +690,23 @@ func run(root: Node) -> void:
 
 	# Resume Monster takeover for the false-exit case.
 	# The false exit is tested separately from the real attic escape.
-	game.environment.interact({"kind":"door","door_id":"false_exit","position":Vector3(0,-2.6,12)})
-	_check(game.environment.false_exit_attempted and game.environment.escape_progress==1,"trying false basement exit triggers interception without winning")
+	await _fixture(Vector3(0,-3.55,10.5),PI)
+	game.player._camera.look_at(Vector3(0,-2.6,12))
+	var exit_target: Dictionary = game.environment._nearest_interactable()
+	_check(exit_target.get("title") == "Exit" and not game.environment.current_interaction_prompt().to_lower().contains("false"), "basement interaction presents a convincing Exit label")
+	_key(KEY_E,true)
+	_key(KEY_E,false)
+	_check(game.environment.false_exit_attempted and game.environment.escape_progress==game.environment.EscapeProgress.BASEMENT_ENTERED,"trying the apparent exit opens its encounter immediately without winning")
 	var arrived := await _until(func() -> bool: return game.monster.arrived_for_interception,40)
 	if not arrived:
 		var route := NavigationServer3D.map_get_path(game.monster.agent.get_navigation_map(),game.monster.global_position,game.monster.interception_anchor.global_position,true)
 		print("INTERCEPTION DIAGNOSTIC ",game.monster.global_position," route=",route)
-	_check(arrived and game.environment.door_state["basement_door"]=="open","monster walks real stairs and basement passage before false exit opens")
+	_check(arrived and game.environment.door_state["basement_door"]=="open","existing mother is staged behind the opaque exit before it opens")
+	await _wait(0.4)
+	_check(game.monster.visual.is_visible_in_tree() and game.monster.can_see_player(game.read_monster_observation()), "mother is physically visible in front of the player at the opened exit")
+	await _shot("basement_exit_reveal")
+	var aggressive := await _until(func() -> bool: return game.monster.monster_state == MonsterController.State.PURSUING,2)
+	_check(aggressive and game.monster.basement_reveal_done and game.monster.tuning.enraged_chase_speed > game.monster.tuning.chase_speed, "exit reveal triggers sustained higher-speed pursuit without requiring evidence")
 	_check(game.environment.escape_progress!=3,"false exit never serves as real victory")
 	await _reset()
 	game.monster.global_position = Vector3(0,0.05,9)
@@ -718,6 +733,43 @@ func run(root: Node) -> void:
 	game.environment.builder.atmosphere.call("stop_ambience")
 	print("HOUSE CHECKS: ",checks," / failures: ",failures)
 	get_tree().quit(0 if failures==0 else 1)
+
+func _verify_presence_and_shell() -> void:
+	if "--presence-only" in OS.get_cmdline_user_args(): Engine.time_scale = 4.0
+	_check(game.monster.global_position.y > 3.0 and game.familiar.patrol_sequence.size() >= 6, "mother begins near the upstairs landing with a route through essential rooms")
+	_check(game.environment.builder.MOTHER_KEY_POSITION.z < -12.0 and game.environment.builder.doors.mother_room.position.z <= -12.0, "Mother's room and key are in the rear wing rather than opposite the starting bedroom")
+	var space: PhysicsDirectSpaceState3D = game.get_world_3d().direct_space_state
+	var sealed := true
+	for ray in [[Vector3(3.2,-2.2,10.5),Vector3(3.2,-2.2,15)],[Vector3(0,-2.2,13.2),Vector3(13,-2.2,13.2)],[Vector3(0,-2.2,13.2),Vector3(-13,-2.2,13.2)]]:
+		sealed = sealed and not space.intersect_ray(PhysicsRayQueryParameters3D.create(ray[0],ray[1],1)).is_empty()
+	_check(sealed, "former exit service gap and both encounter-pocket sides have solid walls")
+	await _fixture(Vector3(3.2,-3.55,10.5),PI)
+	_key(KEY_W,true)
+	await _wait(1.0)
+	_key(KEY_W,false)
+	_check(game.player.global_position.z < 12.0 and game.player.global_position.y > -4.0, "player physically cannot walk through the former basement gap or fall out")
+	await _reset()
+	game.player.global_position = Vector3(-6,3.65,-4.4)
+	game.player.velocity = Vector3.ZERO
+	game.monster.set_physics_process(false)
+	game.familiar._patrol_cursor = 0
+	game.familiar.force_next_station()
+	game.familiar.set_physics_process(true)
+	var visited := {"upstairs":true}
+	var elapsed := 0.0
+	while elapsed < 120.0 and not visited.has("returned_upstairs"):
+		await get_tree().physics_frame
+		elapsed += get_physics_process_delta_time()
+		var height: float = game.monster.global_position.y
+		if absf(height) < 0.5: visited["ground"] = true
+		if game.monster.global_position.distance_to(Vector3(0,-3.55,5)) < 1.0: visited["basement"] = true
+		if visited.has("basement") and height > 3.1: visited["returned_upstairs"] = true
+	_check(visited.has("ground") and visited.has("basement") and visited.has("returned_upstairs"), "household mother physically visits basement storage and returns upstairs through both staircases")
+	if not visited.has("returned_upstairs"):
+		print("PATROL DIAGNOSTIC position=",game.monster.global_position," target=",game.familiar.target_waypoint," station=",game.familiar.current_station_index)
+	_check(not game.monster.encounter_pending and not game.capture_started and game.threat_progression_score() == 0.0, "stronger household presence preserves the non-aggressive opening")
+	await _reset()
+	_freeze()
 
 func _verify_visual_handoff() -> void:
 	await _reset()

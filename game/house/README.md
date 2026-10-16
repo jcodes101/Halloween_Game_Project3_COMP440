@@ -9,7 +9,7 @@ The original footprint was about 22 m wide by 26.5 m deep (x −11..11, z −12.
 | Level | Existing spaces and connections |
 | --- | --- |
 | Ground floor | Front porch and foyer, main stair, living room west/front with sofa hiding, kitchen west/rear with basement stair, dining table east/rear, pantry and downstairs bathroom at the back, linked by a narrow central hall. |
-| Second floor | Central landing, player's bedroom west, Mother's bedroom east with the window key, bathroom west/back, study east/back, and a closable hiding closet east of the hall. The main stair connects to the foyer. |
+| Second floor | Player's bedroom west, guest bedroom opposite, Mother's room and window key in the rear west wing, study east/back, and a closable hiding closet. The main stair connects to the foyer. |
 | Basement | Storage and box hiding west, laundry and crowbar/workbench east, false exit and interception route at the front. The kitchen stair is the normal floor connection. |
 | Attic | Open roof space with boarded hatch and pull-down ladder near the center, storage boxes and rafters, and the locked escape window at the front. |
 | Outside | Porch, front walk, evening street, lamps, planting, and neighboring house silhouettes. |
@@ -23,8 +23,8 @@ The house now reaches z −22 at the back while retaining its original 22 m widt
 | Level | Expanded spaces and routes |
 | --- | --- |
 | Ground floor | Original foyer, living room, kitchen, dining room, pantry, and bath remain. The former rear wall now connects the pantry/bath side to a west family room with TV and sofa and an east breakfast room. Beyond them are a west sitting area and east sunroom/reading nook; the rooms cross-connect near the rear. |
-| Second floor | Original two bedrooms, key placement, bath, study, landing, and closet remain. A west guest bedroom adds an under-bed hiding spot; the east wing adds a work area and reading room. A cross-connection links the back rooms. |
-| Basement | Original storage hiding, laundry, crowbar/workbench, false exit, and interception route remain in place. The rear wing adds a west archive/workbench and east storage/laundry overflow, connected across the wing. |
+| Second floor | The former east Mother room is a guest bedroom. Mother occupies the rear west suite with a double bed, key cabinet, and letter desk. The east wing adds a work area and reading room; the cross-connection remains. |
+| Basement | Storage hiding, laundry, and crowbar/workbench remain. The apparent Exit opens onto a sealed encounter pocket; the old side service gap is closed. The rear archive and utility rooms retain their cross-route. |
 | Attic | The existing hatch, ladder, escape window, and open attic remain. The roof, floor, rafters, and storage continue over the new rear depth; boxes are kept to the sides to preserve the route from the ladder. |
 | Outside | Original porch, neighborhood, and escape landing remain in front. The rear wing is enclosed by extended exterior walls and a matching roof. |
 
@@ -34,12 +34,18 @@ The expansion reuses the already imported CC0 Kenney building and furniture mode
 
 Rear floor slabs, side walls/windows, rear wall, roof panels, and gable were extended together. Framed openings preserve player/monster clearance. The rear room partitions have open, framed crossing routes. `main_game.gd` expands the navigation bake bounds through the wing; the existing stair links, open/closed door links, monster collision, and controller remain in use. `house_environment.gd` reports the new room areas correctly rather than treating z < −12 as outdoors. The new guest bed is added through the existing collision-checked hiding system.
 
-Stair meshes and their physics ramps follow the same travel direction. The upper end of each ramp stops before the upper floor edge to avoid trapping the capsule under that floor. The foyer side barriers still block entry through the visible flight while leaving its landings open.
+Stair meshes and their physics ramps follow the same travel direction. The main ramp meets the upper floor edge without leaving a fall-through gap. Side barriers block entry through either flight while leaving their end landings open.
+
+The main ramp now meets the upstairs floor at z=2.7. Both flights have complete
+side barriers included in navigation. Mother reaches a clear landing first,
+then walks the physical ramp with collision enabled, avoiding diagonal entry
+through its side. Her normal route visits the upstairs landing, kitchen,
+basement storage, and rear upstairs hall; a round-trip test verifies this.
 
 ## Escape route and controls
 
-1. Find the basement crowbar; the marked false exit triggers interception and is not a victory route.
-2. Find the window key in Mother's room upstairs. The order of these two pickups remains flexible.
+1. Find the basement crowbar. The door marked Exit reveals Mother and starts a faster, persistent hunt; it never awards victory. Its former service gap and the encounter pocket are enclosed.
+2. Break sight and hide, then find the window key in Mother's rear upstairs room. The order of the two pickups remains flexible.
 3. Use the crowbar at the boarded second-floor ceiling hatch and press E to pull down the attic ladder.
 4. Climb the ladder with E, then unlock the attic window using Mother's key.
 5. Press Space + forward movement to jump through the window; victory follows the physical exterior landing.

@@ -148,7 +148,9 @@ func _configure_navigation() -> void:
 		# Include the connected rear wing on every navigable house level.
 		region.navigation_mesh.filter_baking_aabb = AABB(Vector3(-13,-4.2,-24),Vector3(26,18,42))
 	region.navigation_mesh.geometry_parsed_geometry_type = NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
-	region.navigation_mesh.geometry_collision_mask = 9
+	# Include the physical stair-side barriers so agents cannot plan routes
+	# through a side that their CharacterBody is forbidden to cross.
+	region.navigation_mesh.geometry_collision_mask = 13 if house_mode else 9
 	region.navigation_mesh.geometry_source_geometry_mode = NavigationMesh.SOURCE_GEOMETRY_GROUPS_WITH_CHILDREN
 	region.navigation_mesh.geometry_source_group_name = &"house_navigation"
 	environment.add_to_group("house_navigation")
@@ -181,7 +183,7 @@ func _build_actors() -> void:
 	audio = MonsterLabAudio.new()
 	add_child(audio)
 	monster = preload("res://systems/monster/Monster.tscn").instantiate()
-	monster.position = Vector3(2,0.05,9) if house_mode else Vector3(2, 0.05, 3)
+	monster.position = Vector3(0,3.65,4.5) if house_mode else Vector3(2, 0.05, 3)
 	monster.observation_provider = self
 	monster.player_actor = player
 	monster.interception_anchor = _marker(Vector3(0,-3.55,13.2) if house_mode else Vector3(0, 0.05, -1.6))
@@ -189,6 +191,14 @@ func _build_actors() -> void:
 	monster.retreat_anchor = _marker(monster.position)
 	add_child(monster)
 	if house_mode:
+		monster.tuning = monster.tuning.duplicate()
+		monster.agent.path_desired_distance = 0.35
+		monster.stair_flights.assign([
+			{"low":Vector3(-7,-3.55,-7.5),"high":Vector3(-7,0.05,2.4)},
+			{"low":Vector3(4.5,0.05,11),"high":Vector3(4.5,3.65,2.35)}
+		])
+		monster.tuning.enraged_chase_speed = 5.3
+		monster.hunt_waypoints.assign([Vector3(0,-3.55,5),Vector3(-7,-3.55,-5),Vector3(-4,0.05,-3),Vector3(0,3.65,-1),Vector3(0,3.65,-9.5)])
 		monster.collision_mask |= 4 # Stair side barriers are on the actor-only layer.
 		monster.floor_block_on_wall = true
 		monster.floor_snap_length = 0.35
@@ -204,10 +214,13 @@ func _build_actors() -> void:
 	familiar.visual_adapter = visual_adapter
 	familiar.add_child(visual_adapter)
 	if house_mode:
-		for station_name in environment.builder.room_points:
-			var station := _marker(environment.builder.room_points[station_name])
+		var patrol_points := {"Upstairs Landing":Vector3(0,3.65,-1),"Kitchen":Vector3(-4,0.05,-3),"Basement Storage":Vector3(0,-3.55,5),"Rear Upstairs Hall":Vector3(0,3.65,-9.5)}
+		for station_name in patrol_points:
+			var station := _marker(patrol_points[station_name])
 			station.name = str(station_name)
 			familiar.routine_stations.append(station)
+		familiar.patrol_sequence.assign([0,1,2,1,0,3])
+		familiar.routine_duration_normal = 3.0
 	else:
 		for point in [Vector3(-1, 0.05, 8), Vector3(2, 0.05, 8), Vector3(2, 0.05, 3), Vector3(-1, 0.05, 3)]:
 			familiar.routine_stations.append(_marker(point))
@@ -333,7 +346,7 @@ func _physics_process(delta: float) -> void:
 		debug_label.text = "Suspicion %.0f | Familiar: %s | AI: %s\nVisible: %s | confidence %.2f | Last known: %s\nNav target: %s | Capture: %s | %s\n1 normal / 2 doubtful / 3 certain" % [observation.suspicion_level, familiar.current_action, "Household routine" if _routine_active else monster.state_name(), str(monster.sees_player), monster._visual_contact_seconds, str(monster.last_seen_position if monster.has_last_seen else Vector3.ZERO), str(monster.destination), str(monster.encounter_cooldown <= 0.0 and monster.monster_state not in [MonsterController.State.STUNNED, MonsterController.State.RETREATING, MonsterController.State.RECOVERING]), monster.pursuit_debug_reason]
 
 func _update_monster_doors(delta: float) -> void:
-	if not house_mode or monster.monster_state not in [MonsterController.State.PURSUING, MonsterController.State.SEARCHING, MonsterController.State.LOST_TARGET, MonsterController.State.INTERCEPTING, MonsterController.State.REVEALING, MonsterController.State.RETREATING]:
+	if not house_mode or (not _routine_active and monster.monster_state not in [MonsterController.State.PURSUING, MonsterController.State.SEARCHING, MonsterController.State.LOST_TARGET, MonsterController.State.INTERCEPTING, MonsterController.State.REVEALING, MonsterController.State.RETREATING]):
 		return
 	_door_scan_timer -= delta
 	if _door_scan_timer > 0.0:
@@ -343,7 +356,7 @@ func _update_monster_doors(delta: float) -> void:
 		if id in ["front_door", "false_exit"]:
 			continue
 		var info: Dictionary = environment.builder.doors[id]
-		if not bool(info.open) and Vector2(monster.global_position.x - info.position.x, monster.global_position.z - info.position.z).length() <= 1.7:
+		if not bool(info.open) and absf(monster.global_position.y - (info.position.y - 1.0)) < 1.5 and Vector2(monster.global_position.x - info.position.x, monster.global_position.z - info.position.z).length() <= 1.7:
 			if environment.open_door_for_monster(id):
 				audio.effect("door_open", info.position)
 			return
@@ -495,6 +508,17 @@ func read_monster_observation() -> MonsterObservation:
 
 func request_door_open() -> bool:
 	door_requested = true
+	if house_mode and not monster.basement_reveal_done and not monster.arrived_for_interception:
+		# Stage the one existing rig in the sealed pocket while the door is
+		# opaque, then let the normal door/reveal signals show her to the player.
+		familiar.hand_off_to_monster()
+		familiar.set_physics_process(false)
+		_routine_active = false
+		monster.reset_controller(monster.interception_anchor.global_position)
+		monster.rotation.y = 0.0
+		monster.arrived_for_interception = true
+		monster._set_appearance("Revealed")
+		monster.set_physics_process(true)
 	return monster.arrived_for_interception
 
 func _arrived() -> void:

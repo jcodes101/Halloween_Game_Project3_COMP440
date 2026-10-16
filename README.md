@@ -70,8 +70,9 @@ See the [official project import instructions](https://docs.godotengine.org/en/4
 | F8 in the editor | Stop the game |
 
 Find the **crowbar in the basement**, reached through the kitchen stairs. The
-**false basement exit** triggers interception and never wins the game. Find the
-**attic window key in Mother's room** on the second floor. Use the crowbar at the
+basement door marked **Exit** reveals Mother and starts an aggressive hunt; it
+never wins the game. Find the **attic window key in Mother's rear upstairs room**,
+past the starting bedroom area. Use the crowbar at the
 boarded ceiling hatch in the upstairs hall, then E to climb the pull-down ladder.
 Unlock the attic window, **jump through with Space + forward**, and land outside
 to escape. A capture starts a five-second QTE; failure leads to the capture

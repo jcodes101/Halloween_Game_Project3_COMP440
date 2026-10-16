@@ -22,6 +22,7 @@ var atmosphere: Node3D
 @export var moonlight_color := Color("a9bfd6")
 const REAR_WING_Z := -22.0
 const ORIGINAL_REAR_Z := -12.0
+const MOTHER_KEY_POSITION := Vector3(-3.5,4.525,-18)
 ## Ground-floor living-room bounds in X/Z. The room grew 25% deeper by moving one
 ## internal partition; the exterior shell and circulation spine stay fixed.
 const LIVING_ROOM_BOUNDS := Rect2(-11.0, 3.0, 9.8, 5.0)
@@ -277,9 +278,13 @@ func _shell() -> void:
 			_wall_segment(Vector3(11,0,-5),34,level,PI/2)
 		_wall_segment(Vector3(0,0,REAR_WING_Z),22,level)
 		if level == -3.6:
-			wall_between(Vector2(-11,12),Vector2(2.2,12),level,11,"false_exit",true)
-			_wall_segment(Vector3(7.6,0,12),6.8,level)
+			# The encounter is staged behind the closed door. No open service
+			# gap remains beside it, and the pocket has complete side walls.
+			wall_between(Vector2(-11,12),Vector2(11,12),level,11,"false_exit",true)
 			_wall_segment(Vector3(0,0,14.5),22,level)
+			for side in [-11.0,11.0]:
+				_wall_segment(Vector3(side,0,13.25),2.5,level,PI/2)
+			box(Vector3(0,-0.12,13.25),Vector3(22,0.24,2.5),Color("4b4840"))
 		else:
 			_front_windows(level)
 	# Porch, supporting columns, and trim assembled from the building kit.
@@ -339,7 +344,7 @@ func _rooms() -> void:
 		for side in [-1.2,1.2]:
 			var spans: Array = [[-12.0,-7.0],[-7.0,3.0],[3.0,7.0]] if level==0 and side<0 else [[-12.0,-7.0],[-7.0,0.0],[0.0,7.0]]
 			for span in spans:
-				var id := "mother_room" if level==3.6 and side>0 and span[0]==-7 else ""
+				var id := "guest_bedroom" if level==3.6 and side>0 and span[0]==-7 else ""
 				var initially_closed := false
 				if level == 3.6 and side < 0.0 and span[0] == -7.0:
 					id = "player_bedroom"
@@ -352,7 +357,7 @@ func _rooms() -> void:
 					id = "pantry_door"
 				elif level == 0.0 and side > 0.0 and span[0] == -7.0:
 					id = "dining_door"
-				wall_between(Vector2(side,span[0]),Vector2(side,span[1]),level,(span[1]-span[0])/2,id,initially_closed or (id == "mother_room"))
+				wall_between(Vector2(side,span[0]),Vector2(side,span[1]),level,(span[1]-span[0])/2,id,initially_closed or (id == "guest_bedroom"))
 		for x in [-11.0,1.2]:
 			for z in [-7.0,0.0]:
 				var line_z: float = 3.0 if level==0 and x<0 and z==0 else z
@@ -372,7 +377,7 @@ func _rooms() -> void:
 		"Sunroom":Vector3(7.0,0.05,-19.3),
 		"Reading Nook":Vector3(4.0,0.05,-18.8)
 	}
-	for entry in [["LIVING ROOM",Vector3(-1.04,2.5,5),PI/2],["KITCHEN / BASEMENT",Vector3(-1.04,2.5,-2),PI/2],["DINING ROOM",Vector3(1.04,2.5,-3.5),-PI/2],["MOTHER'S ROOM",Vector3(1.04,6.1,-3.5),-PI/2],["YOUR ROOM",Vector3(-1.04,6.1,-3.5),PI/2],["FALSE EXIT",Vector3(0,-1.0,11.82),PI]]:
+	for entry in [["LIVING ROOM",Vector3(-1.04,2.5,5),PI/2],["KITCHEN / BASEMENT",Vector3(-1.04,2.5,-2),PI/2],["DINING ROOM",Vector3(1.04,2.5,-3.5),-PI/2],["GUEST ROOM",Vector3(1.04,6.1,-3.5),-PI/2],["YOUR ROOM",Vector3(-1.04,6.1,-3.5),PI/2],["EXIT",Vector3(0,-1.0,11.82),PI]]:
 		_label(entry[0],entry[1],entry[2])
 	_rear_wing_rooms()
 
@@ -382,6 +387,8 @@ func _rear_wing_rooms() -> void:
 	for level in [-3.6,0.0,3.6]:
 		_wall_segment(Vector3(-8.5,0,ORIGINAL_REAR_Z),5.0,level)
 		_door_frame(Vector3(-5,level,ORIGINAL_REAR_Z),0)
+		if level == 3.6:
+			_door("mother_room",Vector3(-5,level,ORIGINAL_REAR_Z),0,true)
 		_wall_segment(Vector3(0,0,ORIGINAL_REAR_Z),7.0,level)
 		_door_frame(Vector3(5,level,ORIGINAL_REAR_Z),0)
 		_wall_segment(Vector3(8.5,0,ORIGINAL_REAR_Z),5.0,level)
@@ -395,7 +402,7 @@ func _rear_wing_rooms() -> void:
 			wall_between(Vector2(1.5,-17),Vector2(11,-17),level,5)
 	_label("FAMILY ROOM",Vector3(-5,2.55,-11.65),PI)
 	_label("BREAKFAST ROOM",Vector3(5,2.55,-11.65),0)
-	_label("GUEST BEDROOM",Vector3(-5,6.15,-11.65),PI)
+	_label("MOTHER'S ROOM",Vector3(-5,6.15,-11.65),PI)
 	_label("UPSTAIRS STUDY",Vector3(5,6.15,-11.65),0)
 	# The open attic continues into the rear roof space; grouped storage below
 	# marks the extension while leaving the ladder route and rafters clear.
@@ -411,39 +418,34 @@ func _stair(bottom: Vector3, top: Vector3, width: float) -> void:
 	var shape := ConvexPolygonShape3D.new()
 	var points := PackedVector3Array()
 	var z_dir := -1.0 if top.z < bottom.z else 1.0
+	# Meet the actual upstairs floor opening at z=2.7. The previous ramp
+	# ended at 3.35, leaving a gap slow-moving NPCs fell through.
+	var upper_edge := top.z + z_dir * 0.3 if bottom.y >= 0.0 else top.z - z_dir * 0.35
 	for x in [-width/2,width/2]:
 		points.append(Vector3(bottom.x+x,bottom.y-0.2,bottom.z-z_dir*0.35))
 		points.append(Vector3(bottom.x+x,bottom.y,bottom.z-z_dir*0.35))
 		# Stop the ramp before the upper landing's floor edge; extending it
 		# underneath that floor traps the player capsule below the landing.
-		points.append(Vector3(top.x+x,bottom.y-0.2,top.z-z_dir*0.35))
-		points.append(Vector3(top.x+x,top.y,top.z-z_dir*0.35))
+		points.append(Vector3(top.x+x,bottom.y-0.2,upper_edge))
+		points.append(Vector3(top.x+x,top.y,upper_edge))
 	shape.points = points
 	collision.shape = shape
 	body.add_child(collision)
 	add_child(body)
-	# Enclose the main stair flight at its sides so it cannot be entered through
-	# the visible mesh. Keep the basement flight's existing navigation approach.
-	if bottom.y >= 0.0:
-		var side_barrier_height := height + 1.8
-		for side in [-1.0, 1.0]:
-			var side_body := StaticBody3D.new()
-			# Layer 4 is physical for actors but excluded from the navigation bake
-			# (which reads layers 1 and 8).
-			side_body.collision_layer = 4
-			side_body.collision_mask = 0
-			var side_collision := CollisionShape3D.new()
-			var side_shape := BoxShape3D.new()
-			# Leave both landings open; agents need room to approach the stair links.
-			side_shape.size = Vector3(0.16, side_barrier_height, maxf(0.1, length - 2.0))
-			side_collision.shape = side_shape
-			side_body.add_child(side_collision)
-			side_body.position = Vector3(
-				bottom.x + side * (width * 0.5 + 0.3),
-				(bottom.y + top.y) * 0.5,
-				(bottom.z + top.z) * 0.5
-			)
-			add_child(side_body)
+	# Enclose both sides for the whole ramp, leaving only its ends open.
+	# Physical actors and the navigation bake see the same boundaries.
+	var lower_edge := bottom.z-z_dir*0.35
+	for side in [-1.0, 1.0]:
+		var side_body := StaticBody3D.new()
+		side_body.collision_layer = 4
+		side_body.collision_mask = 0
+		var side_collision := CollisionShape3D.new()
+		var side_shape := BoxShape3D.new()
+		side_shape.size = Vector3(0.16,height+1.8,absf(upper_edge-lower_edge))
+		side_collision.shape = side_shape
+		side_body.add_child(side_collision)
+		side_body.position = Vector3(bottom.x+side*(width*0.5+0.3),(bottom.y+top.y)*0.5,(lower_edge+upper_edge)*0.5)
+		add_child(side_body)
 	for x in [bottom.x-width/2,bottom.x+width/2]:
 		var rail := model("building","border",Vector3(x,bottom.y+0.95,(bottom.z+top.z)/2),Vector3(0.08,0.1,sqrt(length*length+height*height)))
 		rail.rotation.x = atan2(height,top.z-bottom.z)
@@ -542,7 +544,7 @@ func _furnish() -> void:
 			mesh.material_override = _material(Color("8a9297"))
 	key = Node3D.new()
 	add_child(key)
-	key.position = Vector3(3.5,4.325,-5.5)
+	key.position = MOTHER_KEY_POSITION
 	var ring := MeshInstance3D.new()
 	var torus := TorusMesh.new()
 	torus.inner_radius = 0.08
@@ -609,12 +611,13 @@ func _rear_wing_furnish() -> void:
 	_group_new_children("Ground_East_Sunroom",previous)
 	# Second floor: guest bedroom on the west, study and reading room on the east.
 	previous = get_children()
-	_bed("bedSingle",Vector3(-5.3,3.6,-14.9),2.2,Vector3(0,0,2.3))
+	_bed("bedDouble",Vector3(-5.3,3.6,-14.9),3.2,Vector3(0,0,2.3))
 	_prop("cabinetBed",Vector3(-9.1,3.6,-13.7),Vector3(0.8,0.65,0.65))
 	_prop("lampRoundTable",Vector3(-9.1,4.25,-13.7),Vector3(0.4,0.6,0.4),0,false)
 	_lamp(Vector3(-9.1,5.2,-13.7),0.65)
-	_prop("cabinetBed",Vector3(-3.5,3.6,-15.1),Vector3(1.2,0.9,0.55))
-	_group_new_children("Second_West_GuestBedroom",previous)
+	_prop("cabinetBed",Vector3(-3.5,3.6,-18),Vector3(1.2,0.9,0.55))
+	_prop("desk",Vector3(-8.5,3.6,-19),Vector3(2.0,0.9,1.0))
+	_group_new_children("Second_West_MothersBedroom",previous)
 	previous = get_children()
 	_prop("desk",Vector3(6,3.6,-14.5),Vector3(2.4,0.9,1.0))
 	_prop("chairDesk",Vector3(6,3.6,-13.1),Vector3(0.75,1.1,0.75))

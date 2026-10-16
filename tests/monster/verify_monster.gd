@@ -283,6 +283,16 @@ func _progression_checks() -> void:
 	injected_observation.is_hidden = true
 	lab.monster._handle_threat(injected_observation, 0.01)
 	_check(lab.checked_closet_count == 0, "monster cannot expose a hiding place from the floor below")
+	lab.monster.knows_hiding_place = false
+	lab.monster.sees_player = false
+	lab.monster.has_last_seen = false
+	lab.monster.basement_reveal_done = true
+	lab.monster.hunt_waypoints.assign([Vector3(1,0.05,5),Vector3(-1,0.05,5)])
+	injected_observation.is_hidden = false
+	injected_observation.recognition_score = 0.0
+	lab.monster._handle_threat(injected_observation,0.01)
+	_check(lab.monster.monster_state == MonsterController.State.LOST_TARGET and lab.monster.destination == Vector3(1,0.05,5), "after reveal lost contact starts a physical hunt route rather than returning to a passive routine")
+	lab.monster.hunt_waypoints.clear()
 	lab.monster.observation_provider = lab
 	await _reset()
 

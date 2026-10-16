@@ -1,5 +1,33 @@
 # Monster performance and perception refinements
 
+## Presence and deceptive basement Exit
+
+Mother starts near the upstairs landing. Her normal patrol repeatedly visits
+the landing, kitchen, basement storage, kitchen, and rear upstairs hall, with
+shorter chore pauses. The household bridge advances the shared body's path
+refresh timer while the threat tick is disabled; otherwise she can stop at her
+first station. Routine arrival includes floor height. The main stair ramp now
+meets its upstairs floor opening so slower NPCs do not fall through its edge.
+Both stair flights have side boundaries included in the navigation bake. The
+house supplies clear entry/exit landings; the mother navigates to the entry,
+then traverses the physical ramp with collision and gravity enabled. This
+prevents navigation links from cutting diagonally into a stair's side. The
+legacy lab does not configure these house-specific landing routes.
+
+The door and prompt say Exit. On its first attempt, the one existing mother is
+staged behind the opaque door in the enclosed pocket, and the door opens for a
+visible reveal. After the existing one-second pause, her house chase speed is
+5.3 m/s (player sprint remains 5.8). Searching/hunting uses 2.8 m/s. Losing sight
+does not end her aggression: she follows fixed basement/kitchen/upstairs hunt
+waypoints without reading an unseen player's current location. Concealment,
+three-second stillness, and QTE recovery remain available. Repeating the Exit
+interaction cannot restart the encounter. The old open service gap is replaced
+by a full wall; the pocket has side walls and a ceiling.
+
+Mother's room is now the rear west upstairs suite. Its key is on the cabinet at
+`(-3.5, 4.525, -18)` and her letter is on the desk at `(-8.5, 4.54, -19)`.
+The room opposite the player's starting bedroom is a guest bedroom.
+
 ## Gradual progression in the main game
 
 The main scene now reads permanent evidence recognition separately from temporary
@@ -63,8 +91,8 @@ The monster lab supports `-- --verify-monster`; the main gameplay scene supports
 `-- --verify-house`. Tests cover acoustic barriers, last-contact ordering,
 same-floor search selection, blocked-point expiry, and existing behavior rules.
 
-Verified in Godot 4.7.2 after the progression fix: headless monster lab 81 checks,
-rendered house 167 checks, real observation/inventory integration 72 checks,
+Verified in Godot 4.7.2 after the presence/Exit pass: headless monster lab 82 checks,
+rendered house 176 checks, real observation/inventory integration 72 checks,
 and legacy Familiar integration 53 checks,
 all with zero failures. House traversal, gradual escalation, hiding, basement
 reveal, capture/QTE, escape, and restart are covered. Refreshed house previews

@@ -15,12 +15,14 @@ retained on `game-integration`.
   `origin/Familiar_System` commit ca70b8d.
 - One physical mother body and one visible rig are shared. Routine scheduling
   calls the body's navigation; threat behavior takes over that same body without
-  relocating it. Familiar's skeletal adapter binds to the existing visual.
+  creating a second actor. Familiar's skeletal adapter binds to the existing visual.
 - Monster uses physical visibility and navigation for stalking, pursuit, search,
   concealment, interception and capture.
-- The closed basement has a physical side passage. Environment defers opening
-  until arrival; a shadow/caption warns the player. A navigation link enables
-  the opened doorway. No interception teleport is used.
+- The apparent basement Exit stages that same mother in an enclosed pocket
+  behind its opaque door when attempted, then opens immediately for the reveal.
+  After the readable pause she pursues faster and continues physical hunting
+  after losing sight. The former side gap is sealed. The legacy lab retains
+  its separate continuous-arrival interception test.
 - The house owns key, door, hide and terminal states. Monster emits requests,
   the house applies changes, and the scene adapter reads snapshots.
 - Actual camera height is used for sight. The raised mattress blocks sight and
