@@ -54,11 +54,33 @@ func run(root: Node) -> void:
 	_key(KEY_2, true)
 	_key(KEY_2, false)
 	await _wait(0.3)
-	_check(game.observation.suspicion_level == 50 and game.familiar.behavior_stage == 1 and game.familiar.is_monster_controlled and game.monster.is_physics_processing(), "approved suspicion input updates Familiar and hands movement to Monster")
+	var alertness_handoff: bool = game.observation.suspicion_level == 50 and game.familiar.behavior_stage == 1 and game.familiar.is_monster_controlled and game.monster.is_physics_processing()
+	# Keep a real, unobstructed sighting stable without reaching capture range.
+	# Only this fixture's tuning is changed; subsequent cases reload the scene.
+	game.monster.tuning = game.monster.tuning.duplicate()
+	game.monster.tuning.stalk_speed = 0
+	game.monster.tuning.chase_speed = 0
+	game.player.global_position = Vector3(0, 0.05, 7)
+	game.monster.global_position = Vector3(0, 0.05, 3)
+	game.monster.velocity = Vector3.ZERO
+	game.monster.look_at(Vector3(0, 0.05, 7))
+	var visual_pursuit := await _until(func() -> bool: return game.monster.sees_player and game.monster._visual_contact_seconds >= game.monster.tuning.distant_sight_confirm_seconds and game.monster.monster_state == MonsterController.State.PURSUING and game.monster.target == game.player, 2.0)
 	_key(KEY_1, true)
 	_key(KEY_1, false)
+	await _wait(0.3)
+	_check(alertness_handoff and visual_pursuit and game.observation.suspicion_level == 0 and game.monster.sees_player and game.monster.monster_state == MonsterController.State.PURSUING and game.monster.target == game.player and game.familiar.is_monster_controlled and game.monster.is_physics_processing() and not game._routine_active, "approved alertness input hands movement to Monster; zero temporary alertness preserves visually confirmed pursuit")
+	# Reclaim is a separate case: remove sight and owned threat state, rather
+	# than expecting a debug alertness reset to erase an active pursuit.
+	game.player.global_position = Vector3(-5, 0.05, -3)
+	game.monster.target = null
+	game.monster.has_last_seen = false
+	game.monster.sees_player = false
+	game.monster._visual_contact_seconds = 0
+	game.monster.encounter_cooldown = 0
+	game.monster._change_state(MonsterController.State.DISGUISED)
+	var threat_free: bool = not game.monster.can_see_player(game.read_monster_observation()) and game.monster.target == null and not game.monster.has_last_seen and game.monster.monster_state == MonsterController.State.DISGUISED and game.monster.encounter_cooldown == 0
 	var routine_reclaimed := await _until(func() -> bool: return not game.familiar.is_monster_controlled and game._routine_active and game.monster.target == null, 1.0)
-	_check(routine_reclaimed, "unaware input reclaims the same body and clears threat target")
+	_check(threat_free and routine_reclaimed and game.observation.suspicion_level == 0, "threat-free zero alertness reclaims the same body after sight, threat ownership and cooldown are cleared")
 	await _reset()
 	game.player.global_position = Vector3(0, 0.05, 1)
 	game.environment._try_interact()
