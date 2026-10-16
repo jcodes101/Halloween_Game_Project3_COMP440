@@ -41,3 +41,9 @@ extends Resource
 @export_range(0.2, 3.0, 0.1) var search_pause_seconds := 0.9
 ## Zero uses a randomized search-route order; set a non-zero value to reproduce it.
 @export var search_random_seed := 0
+
+## Acoustic loss in alert points per intersected solid collider (up to three).
+@export var wall_sound_loss := 18.0
+@export var closed_door_sound_loss := 10.0
+@export var room_search_radius := 7.0
+@export var search_point_timeout := 10.0

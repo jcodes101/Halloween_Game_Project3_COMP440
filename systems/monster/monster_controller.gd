@@ -34,6 +34,8 @@ var destination := Vector3.ZERO
 var agent: NavigationAgent3D
 var visual: Node3D
 var _search_points: Array[Vector3] = []
+var search_locations: Array[Vector3] = [] # Static room centers and public hide entrances; never the hidden player.
+var _search_travel_seconds := 0.0
 var _search_index := 0
 var _search_pause_remaining := 0.0
 var _was_visible := false
@@ -111,13 +113,36 @@ func hear_sound(location: Vector3, loudness: float) -> float:
 	var distance := global_position.distance_to(location)
 	if distance > tuning.hearing_distance:
 		return 0.0
-	var alert := clampf(loudness - distance * tuning.sound_falloff_per_meter, 0.0, 60.0)
+	var alert := heard_alert(location, loudness)
 	if alert <= 0.0:
 		return 0.0
 	last_heard_position = location
 	last_seen_position = location
 	has_last_seen = true
 	return alert
+
+## Geometry affects AI hearing, not the audio mix. Exclude each whole collider
+## after a hit so both faces of one wall do not count twice.
+func heard_alert(location: Vector3, loudness: float) -> float:
+	var distance := global_position.distance_to(location)
+	if distance > tuning.hearing_distance:
+		return 0.0
+	var excluded: Array[RID] = [get_rid()]
+	if is_instance_valid(player_actor):
+		excluded.append(player_actor.get_rid())
+	var attenuation := 0.0
+	for barrier in range(3):
+		var ray := PhysicsRayQueryParameters3D.create(global_position + Vector3.UP * 1.2, location + Vector3.UP * 1.0, 9, excluded)
+		ray.hit_from_inside = true
+		var hit := get_world_3d().direct_space_state.intersect_ray(ray)
+		if hit.is_empty():
+			break
+		var body := hit.get("collider") as CollisionObject3D
+		if body == null:
+			break
+		attenuation += tuning.closed_door_sound_loss if body.collision_layer & 8 else tuning.wall_sound_loss
+		excluded.append(body.get_rid())
+	return clampf(loudness - distance * tuning.sound_falloff_per_meter - attenuation, 0.0, 60.0)
 
 func can_see_player(observation: MonsterObservation) -> bool:
 	if not is_instance_valid(player_actor):
@@ -324,6 +349,16 @@ func _begin_search() -> void:
 	_search_index = 0
 	_search_pause_remaining = 0.0
 	var map := agent.get_navigation_map()
+	_search_travel_seconds = 0.0
+	# Always investigate the actual last contact first, on its original floor.
+	_append_search_point(last_seen_position)
+	var nearby: Array[Vector3] = []
+	for location in search_locations:
+		if absf(location.y - last_seen_position.y) < 1.5 and _flat_distance(location, last_seen_position) <= tuning.room_search_radius:
+			nearby.append(location)
+	nearby.sort_custom(func(a: Vector3, b: Vector3) -> bool: return a.distance_squared_to(last_seen_position) < b.distance_squared_to(last_seen_position))
+	for location in nearby.slice(0, 4):
+		_append_search_point(location)
 	var offsets: Array[Vector3] = [Vector3.ZERO, Vector3.LEFT, Vector3.FORWARD, Vector3.RIGHT, Vector3.BACK]
 	for index in range(offsets.size() - 1, 0, -1):
 		var other := _search_rng.randi_range(0, index)
@@ -332,9 +367,18 @@ func _begin_search() -> void:
 		offsets[other] = swap
 	for offset in offsets:
 		var point := NavigationServer3D.map_get_closest_point(map, last_seen_position + offset * tuning.search_radius)
-		if point_reachable(point):
-			_search_points.append(point)
+		if absf(point.y - last_seen_position.y) < 1.5:
+			_append_search_point(point)
 	cue_requested.emit("[Footsteps slow; she is searching the last place she saw you]")
+
+func _append_search_point(requested: Vector3) -> void:
+	var point := NavigationServer3D.map_get_closest_point(agent.get_navigation_map(), requested)
+	if point.distance_to(requested) > 1.5 or not point_reachable(point):
+		return
+	for existing in _search_points:
+		if existing.distance_to(point) < 0.8:
+			return
+	_search_points.append(point)
 
 func _search(delta: float) -> void:
 	if _search_index >= _search_points.size():
@@ -342,6 +386,13 @@ func _search(delta: float) -> void:
 		_stop(delta)
 		return
 	var point := _search_points[_search_index]
+	_search_travel_seconds += delta
+	# Furniture or a newly closed door must not trap the entire search forever.
+	if _search_travel_seconds > tuning.search_point_timeout:
+		_search_index += 1
+		_search_travel_seconds = 0.0
+		_search_pause_remaining = 0.0
+		return
 	if _flat_distance(global_position, point) <= tuning.arrival_distance:
 		if _search_pause_remaining <= 0.0:
 			_search_pause_remaining = tuning.search_pause_seconds
@@ -351,6 +402,7 @@ func _search(delta: float) -> void:
 			_face(look_point, delta)
 			if _search_pause_remaining <= 0.0:
 				_search_index += 1
+				_search_travel_seconds = 0.0
 		_stop(delta)
 	else:
 		_walk_to(point, tuning.stalk_speed * 0.8, delta)
@@ -363,6 +415,7 @@ func _lose_target() -> void:
 	_search_points.clear()
 	_search_index = 0
 	_search_pause_remaining = 0.0
+	_search_travel_seconds = 0.0
 	_change_state(State.LOST_TARGET)
 	cue_requested.emit("[Footsteps recede; she has lost you]")
 
@@ -601,6 +654,9 @@ func _set_appearance(appearance: String) -> void:
 	visual = preload("res://assets/monster/MotherVisual.tscn").instantiate()
 	visual.set("appearance", appearance)
 	visual.rotation.y = PI # Asset faces +Z; CharacterBody faces -Z.
+	var performance := preload("res://systems/monster/threat_motion.gd").new()
+	performance.actor = self
+	visual.add_child(performance)
 	add_child(visual)
 
 func _set_visual_motion(moving: bool) -> void:
@@ -611,7 +667,7 @@ func _set_visual_motion(moving: bool) -> void:
 		return
 	var animation := players[0] as AnimationPlayer
 	if moving:
-		animation.speed_scale = max(0.5, Vector2(velocity.x, velocity.z).length() / 2.0)
+		animation.speed_scale = clampf(Vector2(velocity.x, velocity.z).length() / 2.0, 0.5, 2.3)
 		if not animation.is_playing():
 			animation.play()
 	else:
@@ -637,6 +693,7 @@ func reset_controller(position: Vector3) -> void:
 	_search_points.clear()
 	_search_index = 0
 	_search_pause_remaining = 0.0
+	_search_travel_seconds = 0.0
 	destination = position
 	agent.target_position = position
 	_last_step_position = position

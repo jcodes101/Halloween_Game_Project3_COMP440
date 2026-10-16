@@ -218,6 +218,14 @@ func _connect_game() -> void:
 	observation.suspicion_changed.connect(familiar.set_suspicion_level)
 	familiar.cue_emitted.connect(_caption)
 	monster.cue_requested.connect(_caption)
+	if house_mode:
+		for point in environment.builder.room_points.values():
+			monster.search_locations.append(point)
+		for spot in environment.builder.hide_spots:
+			monster.search_locations.append(spot.hide_config.entry)
+		for info in environment.builder.doors.values():
+			monster.search_locations.append(info.position)
+
 	monster.capture_requested.connect(_capture)
 	monster.close_encounter_requested.connect(_start_survival_qte)
 	monster.interception_ready.connect(_arrived)

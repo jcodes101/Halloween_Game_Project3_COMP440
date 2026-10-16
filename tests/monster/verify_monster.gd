@@ -12,6 +12,7 @@ func run(world: Node) -> void:
 	_check(lab.navigation_is_ready, "navigation baked and synchronized")
 	await _player_controls()
 	await _audio_events()
+	await _polish_checks()
 	await _recognition_and_capture()
 	await _concealment_rules()
 	await _search_completion()
@@ -31,6 +32,55 @@ func _check(condition: bool, label: String) -> void:
 	else:
 		failures += 1
 		push_error("FAIL: " + label)
+
+func _polish_checks() -> void:
+	await _reset(Vector3(0, 0.05, 5), Vector3(0, 0.05, 2))
+	lab.monster.set_physics_process(false)
+	var source: Vector3 = lab.player.global_position
+	var clear_alert: float = lab.monster.heard_alert(source, 50.0)
+	var barrier := StaticBody3D.new()
+	barrier.collision_layer = 8
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(4, 3, 0.2)
+	shape.shape = box
+	barrier.add_child(shape)
+	lab.add_child(barrier)
+	barrier.global_position = Vector3(0, 1.5, 3.5)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var closed_alert: float = lab.monster.heard_alert(source, 50.0)
+	_check(closed_alert < clear_alert, "closed door attenuates hearing")
+	barrier.collision_layer = 1
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check(lab.monster.heard_alert(source, 50.0) < closed_alert, "solid wall attenuates more than a door")
+	barrier.collision_layer = 0
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check(is_equal_approx(lab.monster.heard_alert(source, 50.0), clear_alert), "opening restores clear hearing")
+	_check(lab.monster.heard_alert(source + Vector3.UP * 100, 100.0) == 0.0, "distant sounds remain inaudible")
+	barrier.queue_free()
+	lab.monster.last_seen_position = source
+	lab.monster.search_locations.assign([source + Vector3.RIGHT, source + Vector3.UP * 3.6])
+	lab.monster._begin_search()
+	_check(not lab.monster._search_points.is_empty() and lab.monster._search_points[0].distance_to(source) < 1.5, "search starts at last contact")
+	var same_floor := true
+	for point in lab.monster._search_points:
+		same_floor = same_floor and absf(point.y - source.y) < 1.5
+	_check(same_floor, "search does not select another floor by proximity")
+	lab.monster._search_travel_seconds = lab.monster.tuning.search_point_timeout + 1.0
+	var previous: int = lab.monster._search_index
+	lab.monster._search(0.01)
+	_check(lab.monster._search_index > previous, "blocked search point expires")
+	lab.monster.search_locations.clear()
+	await _reset()
+	var modifiers: Array[Node] = lab.monster.visual.find_children("*", "SkeletonModifier3D", true, false)
+	_check(not modifiers.is_empty(), "threat pose binds to the imported skeleton after character creation")
+	lab.monster.set_physics_process(false)
+	await _wait(0.1)
+	_check(lab.monster.visual.character.rotation.is_zero_approx() and lab.monster.visual.character.position.is_zero_approx(), "routine handoff clears threat model offsets")
+	lab.monster.set_physics_process(true)
 
 func _wait(seconds: float) -> void:
 	await get_tree().create_timer(seconds, false, true).timeout
