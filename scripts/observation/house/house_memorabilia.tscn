@@ -1,0 +1,30 @@
+[gd_scene load_steps=7 format=3]
+[ext_resource type="PackedScene" path="res://scripts/observation/scenes/mom_recipe_card.tscn" id="1"]
+[ext_resource type="PackedScene" path="res://scripts/observation/scenes/mom_unfinished_letter.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scripts/observation/scenes/mimic_rehearsal_notes.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scripts/observation/scenes/mimic_family_photograph.tscn" id="4"]
+[sub_resource type="StandardMaterial3D" id="MomPaper"]
+albedo_color = Color(0.95, 0.79, 0.47, 1)
+emission_enabled = true
+emission = Color(0.3, 0.2, 0.075, 1)
+[sub_resource type="StandardMaterial3D" id="MimicPaper"]
+albedo_color = Color(0.75, 0.86, 0.78, 1)
+emission_enabled = true
+emission = Color(0.12, 0.24, 0.16, 1)
+[node name="HouseMemorabilia" type="Node3D"]
+[node name="MomRecipeCard" parent="." instance=ExtResource("1")]
+position = Vector3(-9.7, 1.04, -2.1)
+[node name="Visual" parent="MomRecipeCard" index="0"]
+material_override = SubResource("MomPaper")
+[node name="MomUnfinishedLetter" parent="." instance=ExtResource("2")]
+position = Vector3(8.15, 4.34, -5.25)
+[node name="Visual" parent="MomUnfinishedLetter" index="0"]
+material_override = SubResource("MomPaper")
+[node name="MimicRehearsalNotes" parent="." instance=ExtResource("3")]
+position = Vector3(7.1, 4.54, -9.3)
+[node name="Visual" parent="MimicRehearsalNotes" index="0"]
+material_override = SubResource("MimicPaper")
+[node name="MimicFamilyPhotograph" parent="." instance=ExtResource("4")]
+position = Vector3(-7, -2.66, -14.7)
+[node name="Visual" parent="MimicFamilyPhotograph" index="0"]
+material_override = SubResource("MimicPaper")

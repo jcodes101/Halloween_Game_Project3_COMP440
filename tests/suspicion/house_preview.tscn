@@ -1,0 +1,8 @@
+[gd_scene load_steps=4 format=3]
+[ext_resource type="PackedScene" path="res://game/main.tscn" id="1"]
+[ext_resource type="Script" path="res://scripts/observation/house/Phase3Game.gd" id="2"]
+[ext_resource type="PackedScene" path="res://scripts/observation/house/phase3_house.tscn" id="3"]
+[node name="TheFamiliar" instance=ExtResource("1")]
+script = ExtResource("2")
+environment_scene = ExtResource("3")
+show_story_intro = false
