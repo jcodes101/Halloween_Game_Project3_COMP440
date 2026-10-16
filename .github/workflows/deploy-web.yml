@@ -1,0 +1,153 @@
+name: Build and deploy Godot Web game
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+env:
+  GODOT_VERSION: 4.7.2
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Prepare cache directories
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/godot-editor" \
+            "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+
+      - name: Cache Godot editor and Web templates
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/godot-editor
+            ~/.local/share/godot/export_templates/${{ env.GODOT_VERSION }}.stable
+          key: godot-${{ runner.os }}-${{ env.GODOT_VERSION }}-web-nothreads-v1
+
+      - name: Install Godot 4.7.2 and the matching Web templates
+        shell: bash
+        run: |
+          set -euo pipefail
+          godot_dir="$RUNNER_TEMP/godot-editor"
+          godot_bin="$godot_dir/Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          template_dir="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          release_url="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable"
+
+          if [[ ! -x "$godot_bin" ]]; then
+            curl --fail --location --retry 3 --silent --show-error \
+              "$release_url/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" \
+              --output "$RUNNER_TEMP/godot-linux.zip"
+            unzip -q -o "$RUNNER_TEMP/godot-linux.zip" -d "$godot_dir"
+            chmod +x "$godot_bin"
+          fi
+
+          if [[ ! -s "$template_dir/version.txt" \
+            || ! -s "$template_dir/web_nothreads_debug.zip" \
+            || ! -s "$template_dir/web_nothreads_release.zip" ]]; then
+            python3 tools/download_godot_web_templates.py \
+              --version "$GODOT_VERSION" \
+              --output "$template_dir"
+          fi
+
+          "$godot_bin" --version
+          echo "GODOT_BIN=$godot_bin" >> "$GITHUB_ENV"
+
+      - name: Import project resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$GODOT_BIN" --headless --path "$GITHUB_WORKSPACE" --editor --quit --import
+
+      - name: Verify front end
+        shell: bash
+        run: >-
+          "$GODOT_BIN" --headless --path "$GITHUB_WORKSPACE" -- --verify-frontend
+
+      - name: Verify four-floor house and gameplay integration
+        shell: bash
+        run: >-
+          "$GODOT_BIN" --headless --path "$GITHUB_WORKSPACE" game/main.tscn -- --verify-house
+
+      - name: Verify monster behavior
+        shell: bash
+        run: >-
+          "$GODOT_BIN" --headless --path "$GITHUB_WORKSPACE" tests/monster/behavior_lab.tscn -- --verify-monster
+
+      - name: Verify Familiar behavior
+        shell: bash
+        run: >-
+          "$GODOT_BIN" --headless --path "$GITHUB_WORKSPACE" -s tests/familiar/verify_familiar.gd
+
+      - name: Verify legacy integration regression suite
+        shell: bash
+        run: >-
+          "$GODOT_BIN" --headless --path "$GITHUB_WORKSPACE" tests/integration/legacy_main.tscn -- --verify-game
+
+      - name: Export production Web build
+        shell: bash
+        run: |
+          set -euo pipefail
+          web_dir="$RUNNER_TEMP/web-build"
+          mkdir -p "$web_dir"
+          if ! "$GODOT_BIN" --headless --path "$GITHUB_WORKSPACE" \
+            --export-release Web "$web_dir/index.html"; then
+            echo "::error title=Godot Web export failed::Check the Godot export log, resource imports, and Web preset." >&2
+            exit 1
+          fi
+
+          for file in index.html index.js index.wasm index.pck; do
+            if [[ ! -s "$web_dir/$file" ]]; then
+              echo "::error title=Incomplete Web export::$file was not created." >&2
+              exit 1
+            fi
+          done
+          touch "$web_dir/.nojekyll"
+          python3 - "$web_dir" <<'PY'
+          from pathlib import Path
+          import sys
+          folder = Path(sys.argv[1])
+          files = [folder / name for name in ("index.html", "index.js", "index.wasm", "index.pck")]
+          total = sum(path.stat().st_size for path in files)
+          print("Godot Web export files:")
+          for path in files:
+              print(f"  {path.name}: {path.stat().st_size:,} bytes")
+          print(f"Uncompressed loader + runtime + game pack: {total:,} bytes")
+          PY
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ runner.temp }}/web-build
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Configure GitHub Pages deployment
+        uses: actions/configure-pages@v5
+
+      - name: Publish Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@v4

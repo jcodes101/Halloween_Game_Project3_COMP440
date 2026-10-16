@@ -185,3 +185,32 @@ The legacy suite now reports pass/fail totals and returns a failing process exit
 **New implementation/resources:** the seven audio tracks and `assets/audio/music/README.md`; `game/environment/flashlight_controller.gd` plus UID; `game/house/HOUSE_LAYOUT_PLAN.md`, `house_atmosphere.gd`, CRT/steam shaders and UID sidecars; `game/integration/dynamic_horror_music.gd`, `vhs_proximity_effect.gd`, VHS shader and UID sidecars; `game/ui/main_menu.tscn`, `main_menu.gd`, `game_ui.gd`, `horror_ui_style.gd`, `horror_typography.gd`, `menu_house_backdrop.gd`, `cinematic_vignette.gdshader`, and available Godot UID sidecars; `tests/ui/verify_frontend.gd` and UID; plus this report and `CHANGELOG.md`.
 
 Godot-generated `.import` files and `.godot` cache files are ignored by the repository. The source audio and `.uid` files are legitimate project resources and should be committed after the staged review. The nine test-generated design screenshots should not be staged in this update.
+
+## Web deployment update — 2026-10-15
+
+### MAJOR — GitHub Pages uses an automated Godot Web deployment
+
+The repository's prior Pages root served the Jekyll placeholder, while an older Godot export was present under `/docs/`. Repository Pages settings were changed, with the user's approval, from branch publishing to GitHub Actions. The new `.github/workflows/deploy-web.yml` builds the actual Godot project and publishes a Pages artifact, targeting `https://jcodes101.github.io/Halloween_Game_Project3_COMP440/`. It does not publish the nine locally modified `design/house` previews or commit generated `web-build` output. The first workflow deployment and live-site checks are recorded in `docs/WEB_DEPLOYMENT.md` after completion.
+
+### HIGH — Reproducible production export and verification in CI
+
+The workflow pins Godot 4.7.2, uses the existing Web preset and Compatibility renderer, disables Web thread support, imports resources, runs the project verification suites, exports the four required loader/runtime/game-data files, checks they are nonempty, adds `.nojekyll`, and uploads them using the GitHub Pages artifact/deploy actions. Build-job permissions are limited to contents read; the deploy job uses Pages write and OIDC identity-token access. It triggers on pushes to `main` and manual workflow dispatch. The workflow YAML parsed locally; GitHub Actions remains the authoritative execution check.
+
+### MEDIUM — Web bundle contents and local serving
+
+The Web preset excludes `design/**`, `docs/**`, and `handoff/**`; `/web-build/` is ignored locally. A fresh export created `index.html` (5,444 bytes), `index.js` (279,815 bytes), `index.wasm` (39,514,754 bytes), and `index.pck` (45,189,848 bytes), totaling 84,989,861 bytes (~81.1 MiB). A local HTTP server returned HTTP 200 for each file; the WASM MIME type was `application/wasm`. This verifies serving and file paths, not browser WebGL rendering or interactive gameplay.
+
+### MINOR — Template download and deployment documentation
+
+`tools/download_godot_web_templates.py` range-extracts only the official 4.7.2 no-thread Web debug/release templates and version marker from the all-platform archive, then validates ZIP integrity and WebAssembly content. This avoids downloading the full ~1.28 GB template archive in CI. `docs/WEB_DEPLOYMENT.md` records the URL, source setting, workflow, local build instructions, browser constraints, artifact sizes, and validation evidence.
+
+### Web deployment verification evidence
+
+| Check | Result | Qualification |
+| --- | --- | --- |
+| Web export | Passed | Godot 4.7.2 produced nonempty HTML, JS, WASM, and PCK files. |
+| Local HTTP smoke test | Passed | All four core resources returned HTTP 200 with expected content lengths; WASM served as `application/wasm`. |
+| Workflow YAML / downloader syntax | Passed | PyYAML parsed the workflow; Python bytecode compilation passed for the helper. GitHub Actions execution is still required to validate the runner end-to-end. |
+| Live browser gameplay | Not run | No browser runtime or browser automation was available. Do not treat the export or HTTP test as proof that pointer lock, WebGL, audio, or full gameplay work in-browser. |
+
+Godot emitted environment warnings because it could not write its user log files in this sandbox or read the Windows root certificate store. The export and verification commands still returned exit code 0. The local web artifact has not yet been inspected in a graphical browser.
