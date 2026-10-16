@@ -47,6 +47,10 @@ func _freeze() -> void:
 	game.monster.set_physics_process(false)
 	game.familiar.set_physics_process(false)
 
+func _confirm_test_evidence(count: int) -> void:
+	for index in count:
+		game.observation_coordinator.manager.confirm_clue("house_test_%d" % index)
+
 func _interactable(kind: String) -> Dictionary:
 	for entry in game.environment._interactables:
 		if entry.kind==kind: return entry
@@ -197,6 +201,7 @@ func _trigger_live_capture_qte(charge: float, flashlight_enabled: bool) -> void:
 	if flashlight_enabled:
 		game.player.flashlight.call("_set_flashlight_enabled", true)
 	game.observation.set_test_suspicion(100.0)
+	_confirm_test_evidence(3)
 	var close_position: Vector3 = game.player.global_position + Vector3(0.55,0.0,0.0)
 	game.monster.reset_controller(close_position)
 	game.monster.look_at(game.player.global_position)
@@ -692,6 +697,7 @@ func run(root: Node) -> void:
 	game.monster.global_position = Vector3(0,0.05,9)
 	game.monster.look_at(Vector3(0,0.05,10.5))
 	game.observation.set_test_suspicion(100)
+	_confirm_test_evidence(3)
 	var qte_open := await _until(func() -> bool: return game.game_ui.get("qte_active"),8)
 	_check(qte_open and not game.capture_started and game.environment.escape_progress!=game.environment.EscapeProgress.CAPTURED,"real house pursuit opens the QTE before any capture ending begins")
 	if qte_open: game.game_ui.call("_process",5.1)
@@ -714,6 +720,8 @@ func run(root: Node) -> void:
 	get_tree().quit(0 if failures==0 else 1)
 
 func _verify_visual_handoff() -> void:
+	await _reset()
+	_freeze()
 	# Use an open, connected center-hall sightline in the actual generated house.
 	await _fixture(Vector3(0, 0.05, -1.0))
 	game.monster.reset_controller(Vector3(0, 0.05, 2.5))
@@ -725,9 +733,29 @@ func _verify_visual_handoff() -> void:
 	var snapshot: MonsterObservation = game.read_monster_observation()
 	var visible: bool = game.monster.can_see_player(snapshot)
 	var registered: bool = game._register_visible_player(snapshot) if visible else false
-	_check(visible and registered and game.observation.suspicion_level >= game.monster.tuning.stalk_threshold, "real unobstructed sightline registers a stationary player and hands off from household behavior without a noise clue")
+	_check(visible and not registered and game.observation.suspicion_level == 0.0, "ordinary sight before evidence does not trigger threat handoff")
+	game._simulation_test_mode = false
+	game._on_interaction_feedback("door_open", game.player.global_position)
+	game._update_player_perception(1.0)
+	_check(game.observation.suspicion_level == 0.0, "normal-phase door noise and sight do not create aggression")
+	game._simulation_test_mode = true
+	game.observation.set_test_suspicion(100.0)
+	game._physics_process(1.0 / 60.0)
+	_check(game._routine_active and not game.familiar.is_monster_controlled and not game.monster.encounter_pending, "even high temporary alertness cannot skip the normal evidence phase")
+	_confirm_test_evidence(1)
+	game._physics_process(1.0 / 60.0)
+	for _tick in 8:
+		game.monster._physics_process(0.2)
+	_check(not game._routine_active and game.familiar.is_monster_controlled and game.monster.disguise_state == "Doubtful" and game.monster.monster_state != MonsterController.State.PURSUING and not game.monster.encounter_pending, "first clue enables doubtful behavior without pursuit despite confirmed sight and high alertness")
+	_confirm_test_evidence(2)
+	_check(game.threat_progression_score() == 50.0, "second unique clue retains doubtful progression")
+	_confirm_test_evidence(3)
+	game.monster.reset_controller(Vector3(0, 0.05, 2.5))
+	game.monster.look_at(game.player.global_position)
+	game.observation.set_test_suspicion(0.0)
 	game._physics_process(1.0 / 60.0)
 	game.monster._physics_process(0.2)
-	_check(not game.get("_routine_active") and game.familiar.is_monster_controlled and game.monster.monster_state == MonsterController.State.PURSUING and game.monster.target == game.player, "confirmed visual contact activates the Familiar's real pursuit controller")
+	_check(not game.get("_routine_active") and game.familiar.is_monster_controlled and game.monster.monster_state == MonsterController.State.PURSUING and game.monster.target == game.player, "third clue allows visible-player pursuit even when temporary alertness decays")
 	await _reset()
+	_check(game.threat_progression_score() == 0.0 and game.monster.target == null and game.monster.disguise_state == "Ordinary", "restart restores normal recognition appearance and targeting")
 	_freeze()

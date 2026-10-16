@@ -13,6 +13,7 @@ func run(world: Node) -> void:
 	await _player_controls()
 	await _audio_events()
 	await _polish_checks()
+	await _progression_checks()
 	await _recognition_and_capture()
 	await _concealment_rules()
 	await _search_completion()
@@ -244,6 +245,46 @@ func _recognition_and_capture() -> void:
 
 func read_monster_observation() -> MonsterObservation:
 	return injected_observation
+
+func _progression_checks() -> void:
+	await _reset(Vector3(0, 0.05, 5), Vector3(0, 0.05, 2))
+	injected_observation = lab.read_monster_observation()
+	injected_observation.suspicion_level = 100.0
+	injected_observation.recognition_score = 0.0
+	lab.monster.observation_provider = self
+	await _wait(0.8)
+	_check(lab.monster.monster_state == MonsterController.State.DISGUISED and not lab.monster.encounter_pending, "evidence-unaware mother ignores aggressive temporary alertness")
+	injected_observation.recognition_score = 50.0
+	await _wait(0.8)
+	_check(lab.monster.monster_state == MonsterController.State.STALKING and lab.monster.disguise_state == "Doubtful" and not lab.monster.encounter_pending, "confirmed sight cannot skip doubtful stalking in an evidence-paced game")
+	injected_observation.recognition_score = 100.0
+	injected_observation.suspicion_level = 0.0
+	lab.monster.tuning.chase_speed = 0.0
+	lab.monster.look_at(lab.player.global_position)
+	await _wait(0.2)
+	_check(lab.monster.monster_state == MonsterController.State.PURSUING, "certain evidence enables pursuit independently of temporary alert decay")
+	lab.monster.reset_controller(Vector3(0, 0.05, 2))
+	injected_observation.recognition_score = 0.0
+	lab.monster.basement_reveal_done = true
+	lab.monster.look_at(lab.player.global_position)
+	await _wait(0.2)
+	_check(lab.monster.monster_state == MonsterController.State.PURSUING and lab.monster.disguise_state == "Revealed", "basement reveal overrides evidence gating without awarding clues")
+	# Use a direct threat tick to isolate distance from sight/navigation rules.
+	lab.monster.set_physics_process(false)
+	lab.monster.reset_controller(Vector3(0, 0.05, 2))
+	lab.monster.sees_player = true
+	lab.monster.player_reachable = true
+	injected_observation.recognition_score = 100.0
+	injected_observation.player_location = lab.monster.global_position + Vector3.UP * 3.6
+	lab.monster._handle_threat(injected_observation, 0.01)
+	_check(not lab.monster.encounter_pending and lab.outcome.is_empty(), "horizontal overlap on another floor cannot trigger capture")
+	lab.monster.knows_hiding_place = true
+	lab.monster._known_hide_position = injected_observation.player_location
+	injected_observation.is_hidden = true
+	lab.monster._handle_threat(injected_observation, 0.01)
+	_check(lab.checked_closet_count == 0, "monster cannot expose a hiding place from the floor below")
+	lab.monster.observation_provider = lab
+	await _reset()
 
 func _audio_events() -> void:
 	await _reset()

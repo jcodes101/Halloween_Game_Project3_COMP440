@@ -25,6 +25,7 @@ the Observation and Environment owners before production integration.
 | Snapshot field | Owning writer / meaning |
 | --- | --- |
 | suspicion_level | Observation: 0–100 test recognition input |
+| recognition_score | Evidence owner: 0/50/100 progression; -1 keeps the legacy lab contract |
 | player_location | Environment: actual player feet position |
 | is_hidden | Environment: valid hiding interaction |
 | player_is_still | Environment: no movement intent or actual movement |

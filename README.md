@@ -76,8 +76,14 @@ boarded ceiling hatch in the upstairs hall, then E to climb the pull-down ladder
 Unlock the attic window, **jump through with Space + forward**, and land outside
 to escape. A capture starts a five-second QTE; failure leads to the capture
 ending, where Try Again and Main Menu are available.
-Follow the on-screen randomized keys during a capture QTE. Hiding spots include
-behind the sofa, under both beds, in the upstairs closet, and behind storage
+Follow the on-screen randomized keys during a capture QTE.
+
+Mother stays in her normal household routine before your first clue. The first
+two unique clues make her doubtful and watchful; the third permits pursuit.
+Sight and noise help her locate you during threat behavior, but do not substitute
+for evidence. Trying the false basement exit still provokes its reveal.
+
+Hiding spots include behind the sofa, under both beds, in the upstairs closet, and behind storage
 boxes in the basement.
 E leaves cover; moving also exits cover and resets
 the stillness timer. Hiding transitions temporarily lock movement.

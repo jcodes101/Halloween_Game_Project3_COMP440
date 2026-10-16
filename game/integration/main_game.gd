@@ -88,7 +88,7 @@ func _ready() -> void:
 		familiar.set_physics_process(true)
 		familiar.force_next_station()
 	if debug_enabled:
-		_caption("Development debug enabled. 1 / 2 / 3 change suspicion.")
+		_caption("Development debug: 1 / 2 / 3 change alertness. Clues control recognition.")
 	if embedded_in_menu:
 		game_ui.visible = true
 		var vhs_layer := vhs_effect.get_node_or_null("VHSOverlayLayer")
@@ -306,7 +306,13 @@ func _physics_process(delta: float) -> void:
 	_update_player_perception(delta)
 	_update_monster_doors(delta)
 	var threat_is_owned := monster.monster_state not in [MonsterController.State.DISGUISED, MonsterController.State.LOST_TARGET] or (monster.monster_state == MonsterController.State.LOST_TARGET and monster.has_last_seen)
-	var should_routine: bool = observation.suspicion_level < monster.tuning.stalk_threshold and environment.escape_progress == environment.EscapeProgress.FIND_KEY and not threat_is_owned and monster.encounter_cooldown <= 0.0
+	var progression := threat_progression_score()
+	var routine_score: float = observation.suspicion_level if progression < 0.0 else progression
+	if progression >= 0.0:
+		# Sight/noise cannot end the normal phase. A reveal or active encounter
+		# still owns the shared body until its recovery has finished.
+		threat_is_owned = monster.basement_reveal_done or monster.encounter_pending or monster.monster_state in [MonsterController.State.STUNNED, MonsterController.State.RETREATING, MonsterController.State.RECOVERING, MonsterController.State.CAPTURED]
+	var should_routine: bool = routine_score < monster.tuning.stalk_threshold and environment.escape_progress == environment.EscapeProgress.FIND_KEY and not threat_is_owned and monster.encounter_cooldown <= 0.0
 	if should_routine != _routine_active:
 		_routine_active = should_routine
 		if should_routine:
@@ -394,6 +400,10 @@ func _handle_main_menu_requested() -> void:
 func _update_player_perception(delta: float) -> void:
 	if _simulation_test_mode or player.is_transitioning() or capture_started:
 		return
+	if threat_progression_score() == 0.0 and not monster.basement_reveal_done:
+		_running_noise_timer = 0.0
+		_perception_scan_timer = 0.0
+		return
 	var is_hidden: bool = environment.is_hidden
 	if not is_hidden and player.is_moving():
 		_running_noise_timer += delta
@@ -425,8 +435,10 @@ func _update_player_perception(delta: float) -> void:
 func _register_visible_player(snapshot: MonsterObservation) -> bool:
 	if environment.is_hidden or not monster.can_see_player(snapshot):
 		return false
-	# An unobstructed sighting transfers control from the household routine
-	# immediately; sound or player movement is not required for visual acquisition.
+	if threat_progression_score() == 0.0 and not monster.basement_reveal_done:
+		return false
+	# Once progression permits threat behavior, sight confirms the player
+	# without requiring noise. It never awards evidence or advances recognition.
 	observation.set_test_suspicion(maxf(observation.suspicion_level, monster.tuning.stalk_threshold + 0.01))
 	return true
 
@@ -440,6 +452,8 @@ func _flashlight_aimed_at_monster() -> bool:
 func _on_interaction_feedback(kind: String, at: Vector3) -> void:
 	audio.effect(kind, at)
 	if kind not in ["door_open", "door_close", "locked_door", "item_pickup"]:
+		return
+	if threat_progression_score() == 0.0 and not monster.basement_reveal_done:
 		return
 	var loudness := 48.0 if kind != "item_pickup" else 36.0
 	var alert := monster.hear_sound(at, loudness)
@@ -459,9 +473,14 @@ func _on_survival_qte_finished(escaped: bool) -> void:
 	player.set_qte_locked(false)
 	monster.resolve_close_encounter(escaped)
 
+func threat_progression_score() -> float:
+	# Legacy lab scenes deliberately retain their independent alertness controls.
+	return -1.0
+
 func read_monster_observation() -> MonsterObservation:
 	var snapshot := MonsterObservation.new()
 	snapshot.suspicion_level = observation.suspicion_level
+	snapshot.recognition_score = threat_progression_score()
 	snapshot.player_location = player.global_position
 	snapshot.is_hidden = environment.is_hidden
 	snapshot.player_is_still = environment.is_player_motionless()

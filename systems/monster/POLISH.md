@@ -1,5 +1,24 @@
 # Monster performance and perception refinements
 
+## Gradual progression in the main game
+
+The main scene now reads permanent evidence recognition separately from temporary
+sight/noise alertness. Before any clue, she keeps the household routine; ordinary
+walking, doors, pickups, and looking at her do not start aggression. The existing
+first and second clues select Doubtful: she watches/stalks without a capture
+attack, even after sustained sight. The existing third clue selects Certain:
+visible reachable players can be pursued, and lost sight leads to searching.
+Trying the false basement exit still triggers the established interception and
+reveal regardless of clue count. No new clue thresholds or forced time gates
+were added, and the monster never awards evidence.
+
+`Phase3Game.threat_progression_score()` forwards the evidence owner's score into
+`MonsterObservation.recognition_score`. The legacy isolated lab leaves that
+field negative and retains its explicit alertness-based test controls. Restart
+rebuilds the evidence state and restores the ordinary model and routine.
+Capture, witnessed-hide checks, and basement arrival now use three-dimensional
+distance to prevent proximity events through another floor.
+
 The existing character and walk clip are retained. `threat_motion.gd` layers a
 small forward lean and speed-driven vertical motion on the model while the
 Monster owns it. Searching adds restrained stationary sway; the reveal stays
@@ -44,12 +63,12 @@ The monster lab supports `-- --verify-monster`; the main gameplay scene supports
 `-- --verify-house`. Tests cover acoustic barriers, last-contact ordering,
 same-floor search selection, blocked-point expiry, and existing behavior rules.
 
-Verified in Godot 4.7.2: rendered monster lab 73 checks, final headless monster
-lab 75 checks, and combined headless house 161 checks, all with zero failures.
-The final headless run includes three additional route-budget/floor checks added
-after the rendered run; one existing preview check runs only with rendering.
-Reveal and capture previews were
-inspected. Full human playtesting of chase fairness and animation quality is
+Verified in Godot 4.7.2 after the progression fix: headless monster lab 81 checks,
+rendered house 167 checks, real observation/inventory integration 72 checks,
+and legacy Familiar integration 53 checks,
+all with zero failures. House traversal, gradual escalation, hiding, basement
+reveal, capture/QTE, escape, and restart are covered. Refreshed house previews
+were generated. Full human playtesting of chase fairness and animation quality is
 still needed; these checks establish behavior and integration, not final balance.
 
 API reference: [Godot 4.7 SkeletonModifier3D](https://docs.godotengine.org/en/4.7/classes/class_skeletonmodifier3d.html)

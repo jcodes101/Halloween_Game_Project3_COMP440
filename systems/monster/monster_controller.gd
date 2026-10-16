@@ -238,8 +238,10 @@ func _physics_process(delta: float) -> void:
 func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 	var sight_threshold := tuning.close_sight_confirm_seconds if _flat_distance(global_position, observation.player_location) <= tuning.close_sight_pursuit_distance else tuning.distant_sight_confirm_seconds
 	var confirmed_visual_contact := sees_player and _visual_contact_seconds >= sight_threshold
-	var recognition := 2 if basement_reveal_done or confirmed_visual_contact else 1 if observation.suspicion_level >= tuning.stalk_threshold else 0
-	if observation.suspicion_level >= tuning.pursue_threshold:
+	var evidence_paced := observation.recognition_score >= 0.0
+	var recognition_score := observation.recognition_score if evidence_paced else observation.suspicion_level
+	var recognition := 2 if basement_reveal_done or (confirmed_visual_contact and not evidence_paced) else 1 if recognition_score >= tuning.stalk_threshold else 0
+	if recognition_score >= tuning.pursue_threshold:
 		recognition = 2
 	if recognition == 0:
 		_change_state(State.DISGUISED)
@@ -247,7 +249,7 @@ func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 		has_last_seen = false
 		hidden_still_time = 0.0
 		_set_appearance("Ordinary")
-		pursuit_debug_reason = "No current suspicion or confirmed sight"
+		pursuit_debug_reason = "Normal recognition; maintaining disguise" if evidence_paced else "No current suspicion or confirmed sight"
 		_stop(delta)
 		return
 	_set_appearance("Revealed" if basement_reveal_done else "Uncanny" if recognition == 2 else "Doubtful")
@@ -256,7 +258,7 @@ func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 		_change_state(State.SEARCHING)
 		hidden_still_time = 0.0
 		_walk_to(_known_hide_position, tuning.stalk_speed, delta)
-		if _flat_distance(global_position, _known_hide_position) < 1.5 and not _hiding_checked:
+		if global_position.distance_to(_known_hide_position) < 1.5 and not _hiding_checked:
 			_hiding_checked = true
 			hiding_place_checked.emit(_known_hide_position)
 		return
@@ -266,10 +268,10 @@ func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 		has_last_seen = true
 		hidden_still_time = 0.0
 		if player_reachable:
-			if recognition == 2 or confirmed_visual_contact:
+			if recognition == 2:
 				pursuit_debug_reason = "Visible player confirmed" if confirmed_visual_contact else "Awareness reached pursuit threshold"
 				_change_state(State.PURSUING)
-				if _flat_distance(global_position, observation.player_location) <= tuning.capture_distance:
+				if global_position.distance_to(observation.player_location) <= tuning.capture_distance:
 					if encounter_cooldown <= 0.0:
 						_try_close_encounter()
 					else:
@@ -277,7 +279,7 @@ func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 					return
 				_walk_to(_player_navigation_position, tuning.chase_speed, delta)
 			else:
-				pursuit_debug_reason = "Visible; confirming sight"
+				pursuit_debug_reason = "Doubtful; watching without attacking" if evidence_paced else "Visible; confirming sight"
 				_change_state(State.STALKING)
 				var distance := _flat_distance(global_position, observation.player_location)
 				if distance > tuning.stalk_distance + 0.25:
@@ -322,7 +324,7 @@ func _handle_interception(observation: MonsterObservation, delta: float) -> void
 		target = null
 		if not arrived_for_interception:
 			_walk_to(interception_anchor.global_position, tuning.stalk_speed, delta)
-			if _flat_distance(global_position, interception_anchor.global_position) <= tuning.arrival_distance and point_reachable(interception_anchor.global_position):
+			if global_position.distance_to(interception_anchor.global_position) <= tuning.arrival_distance and point_reachable(interception_anchor.global_position):
 				arrived_for_interception = true
 				var doorway_direction := interception_anchor.global_basis.z
 				rotation.y = atan2(-doorway_direction.x, -doorway_direction.z)
