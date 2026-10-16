@@ -15,6 +15,7 @@ const CAMERA_BOB_WALK := 0.012
 const CAMERA_BOB_RUN := 0.021
 const CAMERA_ROLL_MAX := 0.006
 @export_group("Camera Comfort")
+@export_range(0.0, 15.0, 1.0) var initial_look_up_degrees := 10.0
 @export_range(0.0, 1.0, 0.05) var camera_motion_intensity := 1.0
 @export_range(4.0, 32.0, 1.0) var ground_acceleration := 18.0
 @export_range(4.0, 36.0, 1.0) var ground_deceleration := 24.0
@@ -58,6 +59,7 @@ func _ready() -> void:
 	_camera = Camera3D.new()
 	_camera.name = "PlayerCamera"
 	_camera.position = _base_camera_position
+	_camera.rotation = standing_camera_rotation()
 	_camera.current = true
 	_camera.fov = 78
 	add_child(_camera)
@@ -166,8 +168,11 @@ func set_opening_camera_pose(camera_position: Vector3, camera_rotation: Vector3)
 		_camera.rotation = camera_rotation
 		_base_camera_roll = camera_rotation.z
 
+func standing_camera_rotation() -> Vector3:
+	return Vector3(deg_to_rad(initial_look_up_degrees),0,0)
+
 func reset_opening_camera_pose() -> void:
-	set_opening_camera_pose(Vector3(0.0, STANDING_CAMERA_Y, 0.0), Vector3.ZERO)
+	set_opening_camera_pose(Vector3(0.0, STANDING_CAMERA_Y, 0.0), standing_camera_rotation())
 	_opening_camera_animated = false
 
 func play_qte_shove_reaction() -> void:
