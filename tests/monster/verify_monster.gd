@@ -74,9 +74,45 @@ func _polish_checks() -> void:
 	lab.monster._search(0.01)
 	_check(lab.monster._search_index > previous, "blocked search point expires")
 	lab.monster.search_locations.clear()
+	lab.monster.last_seen_position = source + Vector3.RIGHT * 3.0
+	lab.monster._begin_search()
+	var unheard_position: Vector3 = lab.monster.last_seen_position
+	lab.monster.hear_sound(source + Vector3.UP * 100.0, 100.0)
+	_check(lab.monster.last_seen_position == unheard_position and not lab.monster._search_needs_refresh, "inaudible sound cannot redirect search")
+	var alert: float = lab.monster.hear_sound(source, 60.0)
+	_check(alert > 0.0 and lab.monster._search_needs_refresh, "credible new sound requests a fresh search")
+	lab.monster._begin_search()
+	_check(not lab.monster._search_needs_refresh and lab.monster._search_points[0].distance_to(source) < 1.5, "refreshed search starts at the new heard location")
+	for step in range(1, 4):
+		lab.monster.hear_sound(source + Vector3.RIGHT * float(step) * 0.4, 60.0)
+	_check(lab.monster._search_needs_refresh, "several small audible movements redirect search cumulatively")
+	lab.monster.last_seen_position = source
+	lab.monster.tuning.room_search_radius = 0.1
+	lab.monster._begin_search()
+	lab.monster._append_search_point(source + Vector3.RIGHT * 2.0)
+	_check(lab.monster._search_points.size() == 1, "optional search probe exceeding route budget is rejected")
+	lab.monster.tuning.room_search_radius = 7.0
+	lab.monster._append_search_point(source + Vector3.RIGHT * 2.0)
+	_check(lab.monster._search_points.size() == 2, "reachable probe within route budget is retained")
+	lab.monster._search_points.assign([lab.monster.global_position + Vector3.UP * 3.6])
+	lab.monster._search_index = 0
+	lab.monster._search_pause_remaining = 0.0
+	lab.monster._search_travel_seconds = 0.0
+	lab.monster._search(0.01)
+	_check(lab.monster._search_pause_remaining == 0.0, "standing under another floor is not search arrival")
 	await _reset()
 	var modifiers: Array[Node] = lab.monster.visual.find_children("*", "SkeletonModifier3D", true, false)
 	_check(not modifiers.is_empty(), "threat pose binds to the imported skeleton after character creation")
+	if not modifiers.is_empty():
+		var pose: Node = modifiers[0]
+		lab.monster._change_state(MonsterController.State.STALKING)
+		pose.call("_process_modification_with_delta", 0.1)
+		var tilt: Vector3 = pose.offsets.get("Head_021", Vector3.ZERO)
+		_check(tilt.z > 0.0 and tilt.z < 5.0, "stalking head tilt eases into its target")
+		lab.monster._change_state(MonsterController.State.RECOVERING)
+		pose.call("_process_modification_with_delta", 0.1)
+		var settling: Vector3 = pose.offsets.get("Head_021", Vector3.ZERO)
+		_check(settling.z > 0.0 and settling.z < tilt.z, "head tilt eases out when threat state changes")
 	lab.monster.set_physics_process(false)
 	await _wait(0.1)
 	_check(lab.monster.visual.character.rotation.is_zero_approx() and lab.monster.visual.character.position.is_zero_approx(), "routine handoff clears threat model offsets")

@@ -36,6 +36,8 @@ var visual: Node3D
 var _search_points: Array[Vector3] = []
 var search_locations: Array[Vector3] = [] # Static room centers and public hide entrances; never the hidden player.
 var _search_travel_seconds := 0.0
+var _search_needs_refresh := false
+var _search_origin := Vector3.ZERO
 var _search_index := 0
 var _search_pause_remaining := 0.0
 var _was_visible := false
@@ -116,6 +118,8 @@ func hear_sound(location: Vector3, loudness: float) -> float:
 	var alert := heard_alert(location, loudness)
 	if alert <= 0.0:
 		return 0.0
+	if monster_state == State.SEARCHING and location.distance_to(_search_origin) > tuning.arrival_distance * 2.0:
+		_search_needs_refresh = true
 	last_heard_position = location
 	last_seen_position = location
 	has_last_seen = true
@@ -289,7 +293,7 @@ func _handle_threat(observation: MonsterObservation, delta: float) -> void:
 	if has_last_seen:
 		if not sees_player:
 			pursuit_debug_reason = "Searching last confirmed position"
-		if monster_state != State.SEARCHING or _search_points.is_empty():
+		if monster_state != State.SEARCHING or _search_points.is_empty() or _search_needs_refresh:
 			_begin_search()
 		if observation.is_hidden and observation.player_is_still and not sees_player:
 			hidden_still_time += delta
@@ -344,6 +348,8 @@ func _handle_interception(observation: MonsterObservation, delta: float) -> void
 		_handle_threat(observation, delta)
 
 func _begin_search() -> void:
+	_search_needs_refresh = false
+	_search_origin = last_seen_position
 	_change_state(State.SEARCHING)
 	_search_points.clear()
 	_search_index = 0
@@ -373,8 +379,16 @@ func _begin_search() -> void:
 
 func _append_search_point(requested: Vector3) -> void:
 	var point := NavigationServer3D.map_get_closest_point(agent.get_navigation_map(), requested)
-	if point.distance_to(requested) > 1.5 or not point_reachable(point):
+	if absf(point.y - last_seen_position.y) >= 1.5 or point.distance_to(requested) > 1.5 or not point_reachable(point):
 		return
+	# Nearby probes across a wall must not require a tour of the whole house.
+	if not _search_points.is_empty():
+		var route := NavigationServer3D.map_get_path(agent.get_navigation_map(), _search_points[0], point, true)
+		var length := 0.0
+		for index in range(1, route.size()):
+			length += route[index - 1].distance_to(route[index])
+		if route.is_empty() or length > tuning.room_search_radius * 2.0:
+			return
 	for existing in _search_points:
 		if existing.distance_to(point) < 0.8:
 			return
@@ -393,7 +407,7 @@ func _search(delta: float) -> void:
 		_search_travel_seconds = 0.0
 		_search_pause_remaining = 0.0
 		return
-	if _flat_distance(global_position, point) <= tuning.arrival_distance:
+	if _flat_distance(global_position, point) <= tuning.arrival_distance and absf(global_position.y - point.y) < 1.5:
 		if _search_pause_remaining <= 0.0:
 			_search_pause_remaining = tuning.search_pause_seconds
 		else:
@@ -408,6 +422,7 @@ func _search(delta: float) -> void:
 		_walk_to(point, tuning.stalk_speed * 0.8, delta)
 
 func _lose_target() -> void:
+	_search_needs_refresh = false
 	target = null
 	has_last_seen = false
 	knows_hiding_place = false
@@ -674,6 +689,8 @@ func _set_visual_motion(moving: bool) -> void:
 		animation.pause()
 
 func reset_controller(position: Vector3) -> void:
+	_search_needs_refresh = false
+	_search_origin = position
 	_restore_stun_visual()
 	global_position = position
 	velocity = Vector3.ZERO

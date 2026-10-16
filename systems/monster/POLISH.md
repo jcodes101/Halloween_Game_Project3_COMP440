@@ -24,6 +24,14 @@ entrance is a place to approach, not permission to expose its occupant. The
 existing witnessed-hide and three-second concealment rules retain ownership.
 Duplicate points are rejected and blocked search points expire.
 
+Search routes refresh when a newly audible source moves away from the planned
+contact, including cumulative movement from several footsteps. Inaudible sounds
+cannot redirect them. Optional probes have a navigation-route distance budget,
+so a point just across a wall cannot send her on a long house-wide detour.
+Arrival checks include floor height. Head, spine and reach offsets now ease
+between states, cache bone lookups, and retain the capture pose when movement
+processing is stopped for the ending camera.
+
 ## Try it
 
 Press F5, choose New Game, and compare walking/running behind an open and closed
@@ -36,8 +44,11 @@ The monster lab supports `-- --verify-monster`; the main gameplay scene supports
 `-- --verify-house`. Tests cover acoustic barriers, last-contact ordering,
 same-floor search selection, blocked-point expiry, and existing behavior rules.
 
-Verified in Godot 4.7.2: rendered monster lab 67 checks and combined headless
-house 161 checks, both with zero failures. Reveal and capture previews were
+Verified in Godot 4.7.2: rendered monster lab 73 checks, final headless monster
+lab 75 checks, and combined headless house 161 checks, all with zero failures.
+The final headless run includes three additional route-budget/floor checks added
+after the rendered run; one existing preview check runs only with rendering.
+Reveal and capture previews were
 inspected. Full human playtesting of chase fairness and animation quality is
 still needed; these checks establish behavior and integration, not final balance.
 

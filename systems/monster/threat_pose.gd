@@ -3,10 +3,13 @@ extends SkeletonModifier3D
 var actor: MonsterController
 var elapsed := 0.0
 var blend := 0.0
+var offsets: Dictionary = {}
+var bone_indices: Dictionary = {}
 
 func _process_modification_with_delta(delta: float) -> void:
-	if not is_instance_valid(actor) or not actor.is_physics_processing():
+	if not is_instance_valid(actor) or (not actor.is_physics_processing() and actor.monster_state != MonsterController.State.CAPTURED):
 		blend = 0.0
+		offsets.clear()
 		return
 	var rig := get_skeleton()
 	if rig == null:
@@ -18,17 +21,22 @@ func _process_modification_with_delta(delta: float) -> void:
 	var grabbing := actor.encounter_pending or actor.monster_state == MonsterController.State.CAPTURED
 	var chasing := actor.monster_state == MonsterController.State.PURSUING
 	var yaw := sin(elapsed * 0.85) * 16.0 if searching else 0.0
-	_offset(rig, "Head_021", Vector3(0, yaw, 5.0 if stalking else 0.0))
-	_offset(rig, "Spine_011", Vector3(-5.0 if chasing else 0.0, 0, 0))
-	if grabbing:
-		_offset(rig, "LeftArm_013", Vector3(-35, 0, -15))
-		_offset(rig, "RightArm_017", Vector3(-35, 0, 15))
-		_offset(rig, "LeftForeArm_014", Vector3(-20, 0, 0))
-		_offset(rig, "RightForeArm_018", Vector3(-20, 0, 0))
+	_offset(rig, "Head_021", Vector3(0, yaw, 5.0 if stalking else 0.0), delta)
+	_offset(rig, "Spine_011", Vector3(-5.0 if chasing else 0.0, 0, 0), delta)
+	# Every bone updates on exit too, so the reach settles instead of snapping.
+	_offset(rig, "LeftArm_013", Vector3(-35, 0, -15) if grabbing else Vector3.ZERO, delta)
+	_offset(rig, "RightArm_017", Vector3(-35, 0, 15) if grabbing else Vector3.ZERO, delta)
+	_offset(rig, "LeftForeArm_014", Vector3(-20, 0, 0) if grabbing else Vector3.ZERO, delta)
+	_offset(rig, "RightForeArm_018", Vector3(-20, 0, 0) if grabbing else Vector3.ZERO, delta)
 
-func _offset(rig: Skeleton3D, bone_name: String, degrees: Vector3) -> void:
-	var index := rig.find_bone(bone_name)
+func _offset(rig: Skeleton3D, bone_name: String, degrees: Vector3, delta: float) -> void:
+	if not bone_indices.has(bone_name):
+		bone_indices[bone_name] = rig.find_bone(bone_name)
+	var index: int = bone_indices[bone_name]
 	if index < 0:
 		return
-	var angles := degrees * (PI / 180.0) * blend
+	var previous: Vector3 = offsets.get(bone_name, Vector3.ZERO)
+	var smoothed := previous.lerp(degrees, 1.0 - exp(-8.0 * delta))
+	offsets[bone_name] = smoothed
+	var angles := smoothed * (PI / 180.0) * blend
 	rig.set_bone_pose_rotation(index, rig.get_bone_pose_rotation(index) * Quaternion.from_euler(angles))
