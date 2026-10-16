@@ -58,6 +58,7 @@ func run_tests() -> void:
 	test_state_ownership_and_defaults()
 	test_observation_system_api()
 	test_stage_transitions()
+	test_stage_boundary_regression()
 	test_signals_emitted()
 	test_visual_adapter_decoupling()
 	test_stage_1_normal_routines_and_greeting()
@@ -137,6 +138,97 @@ func test_stage_transitions() -> void:
 	controller.set_suspicion_level(10.0)
 	assert_eq(controller.behavior_stage, FamiliarConstants.BehaviorStage.NORMAL, "Suspicion lowered to 10.0 -> Stage NORMAL")
 	assert_true(controller.is_acting_normal, "Recovered stage has is_acting_normal = true")
+	
+	controller.free()
+
+func test_stage_boundary_regression() -> void:
+	print("\n--- Test Suite: Familiar Stage Boundary & Transition Regression ---")
+	var controller := FamiliarController.new()
+	
+	var stage_changes: Array[Dictionary] = []
+	var normal_changes: Array[bool] = []
+	var trust_history: Array[float] = []
+	
+	controller.behavior_stage_changed.connect(func(prev: int, current: int):
+		stage_changes.append({"prev": prev, "current": current})
+	)
+	controller.acting_normal_changed.connect(func(val: bool):
+		normal_changes.append(val)
+	)
+	controller.trust_level_changed.connect(func(val: float):
+		trust_history.append(val)
+	)
+	
+	# Initial baseline: 0.0 suspicion
+	controller.set_suspicion_level(0.0)
+	assert_eq(controller.behavior_stage, FamiliarConstants.BehaviorStage.NORMAL, "Boundary 0.0 suspicion -> NORMAL stage")
+	assert_approx(controller.trust_level, 100.0, "Boundary 0.0 suspicion -> 100.0 trust")
+	assert_true(controller.is_acting_normal, "Boundary 0.0 suspicion -> is_acting_normal true")
+	
+	# Just below Doubtful threshold (34.9 < 35.0)
+	controller.set_suspicion_level(34.9)
+	assert_eq(controller.behavior_stage, FamiliarConstants.BehaviorStage.NORMAL, "Boundary 34.9 suspicion -> remains NORMAL stage")
+	assert_approx(controller.trust_level, 65.1, "Boundary 34.9 suspicion -> 65.1 trust")
+	assert_true(controller.is_acting_normal, "Boundary 34.9 suspicion -> is_acting_normal true")
+	assert_eq(stage_changes.size(), 0, "No stage change signal fired within NORMAL boundary")
+	
+	# Exactly at Doubtful threshold (35.0)
+	controller.set_suspicion_level(FamiliarConstants.DOUBTFUL_THRESHOLD)
+	assert_eq(controller.behavior_stage, FamiliarConstants.BehaviorStage.DOUBTFUL, "Threshold 35.0 suspicion -> transitions to DOUBTFUL stage")
+	assert_approx(controller.trust_level, 65.0, "Threshold 35.0 suspicion -> 65.0 trust")
+	assert_true(not controller.is_acting_normal, "Threshold 35.0 suspicion -> is_acting_normal false")
+	assert_eq(stage_changes.size(), 1, "Exactly 1 stage change signal on crossing Doubtful threshold")
+	assert_eq(stage_changes[0]["prev"], FamiliarConstants.BehaviorStage.NORMAL, "Stage change prev is NORMAL")
+	assert_eq(stage_changes[0]["current"], FamiliarConstants.BehaviorStage.DOUBTFUL, "Stage change current is DOUBTFUL")
+	assert_eq(normal_changes.size(), 1, "acting_normal_changed signal fired on Doubtful entry")
+	assert_true(not normal_changes[0], "acting_normal_changed value is false")
+	
+	# Mid-stage suspicion update (50.0) does NOT re-trigger stage change
+	controller.set_suspicion_level(50.0)
+	assert_eq(controller.behavior_stage, FamiliarConstants.BehaviorStage.DOUBTFUL, "Suspicion 50.0 -> remains DOUBTFUL stage")
+	assert_approx(controller.trust_level, 50.0, "Suspicion 50.0 -> 50.0 trust")
+	assert_eq(stage_changes.size(), 1, "No duplicate stage signal fired for mid-stage suspicion change")
+	
+	# Just below Certain threshold (74.9 < 75.0)
+	controller.set_suspicion_level(74.9)
+	assert_eq(controller.behavior_stage, FamiliarConstants.BehaviorStage.DOUBTFUL, "Boundary 74.9 suspicion -> remains DOUBTFUL stage")
+	assert_approx(controller.trust_level, 25.1, "Boundary 74.9 suspicion -> 25.1 trust")
+	assert_true(not controller.is_acting_normal, "Boundary 74.9 suspicion -> is_acting_normal false")
+	assert_eq(stage_changes.size(), 1, "No duplicate stage signal at upper Doubtful boundary")
+	
+	# Exactly at Certain threshold (75.0)
+	controller.set_suspicion_level(FamiliarConstants.CERTAIN_THRESHOLD)
+	assert_eq(controller.behavior_stage, FamiliarConstants.BehaviorStage.CERTAIN, "Threshold 75.0 suspicion -> transitions to CERTAIN stage")
+	assert_approx(controller.trust_level, 25.0, "Threshold 75.0 suspicion -> 25.0 trust")
+	assert_true(not controller.is_acting_normal, "Threshold 75.0 suspicion -> is_acting_normal false")
+	assert_eq(stage_changes.size(), 2, "Exactly 2 stage changes after entering Certain")
+	assert_eq(stage_changes[1]["prev"], FamiliarConstants.BehaviorStage.DOUBTFUL, "Stage change prev is DOUBTFUL")
+	assert_eq(stage_changes[1]["current"], FamiliarConstants.BehaviorStage.CERTAIN, "Stage change current is CERTAIN")
+	
+	# Max suspicion (100.0)
+	controller.set_suspicion_level(100.0)
+	assert_eq(controller.behavior_stage, FamiliarConstants.BehaviorStage.CERTAIN, "Boundary 100.0 suspicion -> remains CERTAIN stage")
+	assert_approx(controller.trust_level, 0.0, "Boundary 100.0 suspicion -> 0.0 trust")
+	
+	# Out of bounds clamping: negative
+	controller.set_suspicion_level(-15.0)
+	assert_approx(controller.suspicion_level, 0.0, "Negative suspicion clamped to 0.0")
+	assert_approx(controller.trust_level, 100.0, "Clamped negative suspicion yields 100.0 trust")
+	assert_eq(controller.behavior_stage, FamiliarConstants.BehaviorStage.NORMAL, "Clamped negative suspicion returns to NORMAL")
+	assert_true(controller.is_acting_normal, "Clamped negative suspicion restores is_acting_normal")
+	
+	# Out of bounds clamping: above 100
+	controller.set_suspicion_level(150.0)
+	assert_approx(controller.suspicion_level, 100.0, "Excess suspicion clamped to 100.0")
+	assert_approx(controller.trust_level, 0.0, "Clamped excess suspicion yields 0.0 trust")
+	assert_eq(controller.behavior_stage, FamiliarConstants.BehaviorStage.CERTAIN, "Clamped excess suspicion reaches CERTAIN")
+	
+	# Recovery progression: CERTAIN -> DOUBTFUL -> NORMAL
+	controller.set_suspicion_level(74.0)
+	assert_eq(controller.behavior_stage, FamiliarConstants.BehaviorStage.DOUBTFUL, "Suspicion 74.0 -> recovers to DOUBTFUL from CERTAIN")
+	controller.set_suspicion_level(34.0)
+	assert_eq(controller.behavior_stage, FamiliarConstants.BehaviorStage.NORMAL, "Suspicion 34.0 -> recovers to NORMAL from DOUBTFUL")
+	assert_true(controller.is_acting_normal, "Fully recovered stage restores is_acting_normal")
 	
 	controller.free()
 
